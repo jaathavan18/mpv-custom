@@ -1,6 +1,6 @@
 <h1 align="center">mpv-custom</h1>
 
-<p align="center">A tabbed playlist panel in a resizable side strip, an add-ons panel with on/off switches, VLC's letter keys and a window that remembers itself, for <a href="https://mpv.io">mpv</a> on Windows.</p>
+<p align="center">Custom add-ons for <a href="https://mpv.io">mpv</a>, for convenience.</p>
 
 <p align="center">Version 1.0.0 · <a href="CHANGELOG.md">what changed</a></p>
 
