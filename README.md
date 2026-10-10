@@ -5,7 +5,8 @@
 <p align="center">Version 1.0.0 · <a href="CHANGELOG.md">what changed</a></p>
 
 <p align="center">
-  <a href="#install"><strong>Install »</strong></a><br>
+  <a href="https://github.com/jaathavan18/mpv-custom/releases/latest"><strong>Download »</strong></a> ·
+  <a href="#install">Install</a><br>
   <a href="docs/KEYS.md">Keys</a> ·
   <a href="docs/PANEL.md">The side strip</a> ·
   <a href="docs/ADDONS.md">Add-ons panel</a> ·
@@ -36,7 +37,7 @@
 
 **Back up your mpv config folder first** (copy it somewhere). These files are provided as is, without any warranty (see [LICENSE](LICENSE)); you use them at your own risk.
 
-1. Extract `mpv-custom-1.0.0.zip` into your mpv config folder: the `portable_config` folder next to `mpv.exe` (create it if it is not there), or `%APPDATA%\mpv` if you installed mpv normally. Extract so that the zip's `scripts` folder lands in the config folder's `scripts` folder and its files merge with what is there; do not put the files in a new sub-folder.
+1. Download `mpv-custom-1.0.0.zip` from the [Releases page](https://github.com/jaathavan18/mpv-custom/releases/latest) (the right-hand side of the repo page has a "Releases" box too). Smaller zips for single parts are listed there as well. Extract it into your mpv config folder: the `portable_config` folder next to `mpv.exe` (create it if it is not there), or `%APPDATA%\mpv` if you installed mpv normally. Extract so that the zip's `scripts` folder lands in the config folder's `scripts` folder and its files merge with what is there; do not put the files in a new sub-folder.
 2. Copy the lines from `examples/mpv.conf` into your `mpv.conf`.
 3. The letter keys need nothing more. For the chapter keys add `examples/input-chapters.conf` to your `input.conf`.
 
