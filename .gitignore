@@ -1,0 +1,12 @@
+# not part of the repo
+dist/
+*.before-*
+# data the add-ons write when this folder is used as an mpv config folder
+tabs-*.json
+tabs-*.json.closed
+window-memory.json
+sub-track.json
+volume.state
+watch_later/
+strip-state.json
+addons-state.json
