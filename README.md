@@ -1,6 +1,6 @@
 <h1 align="center">mpv-custom</h1>
 
-<p align="center">Custom add-ons for <a href="https://mpv.io">mpv</a>, for convenience.</p>
+<p align="center">Custom add-ons for <a href="https://mpv.io">mpv</a>.</p>
 
 <p align="center">Version 1.0.0 · <a href="CHANGELOG.md">what changed</a></p>
 
