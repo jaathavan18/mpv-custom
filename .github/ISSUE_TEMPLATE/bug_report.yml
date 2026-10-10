@@ -1,0 +1,38 @@
+name: Problem report
+description: Something does not work or looks wrong
+body:
+  - type: input
+    id: mpv
+    attributes:
+      label: mpv build and Windows version
+      description: The top line when you start mpv.com in a terminal, and your Windows version
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: mpv-custom version and parts
+      description: The VERSION file, and which zip or parts you installed
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, what happened instead
+    validations:
+      required: true
+  - type: input
+    id: display
+    attributes:
+      label: Display scale and number of monitors
+      description: Windows Settings > Display. Only needed if the window or the strip is involved
+  - type: textarea
+    id: log
+    attributes:
+      label: Log lines about the add-ons
+      description: From starting mpv in a terminal (mpv.com)
+      render: text
+  - type: markdown
+    attributes:
+      value: Add a screenshot or a short screen recording if it is about how something looks or moves. Blur or crop anything private such as file names. This is a hobby project provided as is; there is no promise of a fix or of a time frame.
