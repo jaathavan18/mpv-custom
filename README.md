@@ -33,6 +33,14 @@
 - **Python 3** for exactly those two things. It is found automatically (`python`, `py`, `python3`, the per-user install). If yours is somewhere else, see Configuration. Without Python the panels, the divider, the add-ons panel and every other part still work; the window just keeps its size and the strip takes its room from the video.
 - Tested with the mpv build `x86_64-v3-20261008`. Nothing else was tried.
 
+## Tested on
+
+Everything was built and tried on one computer: Windows 11 Home (build 26200), the portable mpv build `x86_64-v3-20261008-git-36bf3d5290`, Python 3.13, display scale 150%, one monitor.
+
+**Not tested**, so it may behave differently there: Windows 10, other display scales (the panel sizes follow the scale but were only seen at 150%), several monitors or monitors with different scales, other mpv builds (the bottom bar script is a copy of that build's own bar), other Python versions, and mpv installed in `%APPDATA%\mpv` instead of the portable folder. Linux and macOS are not supported: widening the window and window memory are Windows only, and the rest was never tried there.
+
+If you try one of these, a note in an issue saying it works (or what broke) is welcome.
+
 ## Install
 
 **Back up your mpv config folder first** (copy it somewhere). These files are provided as is, without any warranty (see [LICENSE](LICENSE)); you use them at your own risk.
