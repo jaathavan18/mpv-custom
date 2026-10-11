@@ -1,6 +1,6 @@
 -- rescan-folder.lua
 -- Every time a file starts playing (open, n, p, >, <, end of file), look at its folder again and add
--- video files that appeared since the last look to the playlist, sorted into place.
+-- video files that appeared since the last look to the playlist, sorted into place inside that folder's own group of entries.
 --  * The first look at a folder only records what is there (mpv's own autocreate-playlist already added it).
 --    Exception: after a saved session was restored, files newer than that session are added (they arrived while mpv was closed).
 --  * Later looks add only files that are new, so items you removed or never added are not forced back in.
@@ -71,11 +71,17 @@ local function rescan()
     table.sort(fresh, function(a, b) return key(a.name) < key(b.name) end)
     for _, f in ipairs(fresh) do
         local pl = mp.get_property_native("playlist") or {}
-        local at, k = #pl, key(f.name)
+        -- into this folder's own group: before the first entry of the folder that sorts after it, else right after the folder's
+        -- last entry (not at the end of the whole playlist, which may hold other folders after it); at the end only if the folder has no entry left
+        local at, k, last = #pl, key(f.name), nil
         for i, e in ipairs(pl) do
             local d, base = utils.split_path(absolute(e.filename))
-            if norm(d) == ndir and key(base) > k then at = i - 1; break end
+            if norm(d) == ndir then
+                if key(base) > k then at = i - 1; last = nil; break end
+                last = i
+            end
         end
+        if last then at = last end
         mp.commandv("loadfile", f.full, "insert-at", tostring(at))
         msg.info("rescan: added " .. f.name)
     end

@@ -19,6 +19,7 @@
 | Del | remove the selected row |
 | Up / Down / PgUp / PgDn / Home / End | move the selection (mouse over the panel) |
 | Enter | play the selected row (mouse over the panel) |
+| Drag a row | reorder the playlist (a folder that is not opened yet is one row and moves too) |
 | Drag a tab | reorder tabs |
 | Middle-click a tab | close it |
 | **+** / **x** on the tab strip | new tab / close tab |

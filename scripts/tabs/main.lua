@@ -291,6 +291,7 @@ end
 
 -- ---------------------------------------------------------------- drawing + hit areas
 local scroll, selected = 0, nil
+local rowdrag = nil   -- a file row is being dragged: {from, target} (1-based playlist positions)
 local hits = {tabs = {}, rows = {}}
 local overlay = mp.create_osd_overlay("ass-events")
 
@@ -374,6 +375,11 @@ redraw = function()
         out[#out + 1] = text(x0 + math.floor(FS * 0.4), y1 + ry, string.format("%02d", i), playing and C.yel or C.dim, {x0, y1, x0 + math.floor(FS * 1.4), y1 + ROW_H})
         out[#out + 1] = text(x0 + math.floor(FS * 1.5), y1 + ry, trunc(row_label(playlist[i]), maxc), playing and C.yel or C.txt, {x0 + math.floor(FS * 1.4), y1, w, y1 + ROW_H})
         hits.rows[#hits.rows + 1] = {y1 = y1, y2 = y1 + ROW_H, index = i}
+        if rowdrag and rowdrag.from == i then out[#out + 1] = rect(x0, y1, w, y1 + ROW_H, C.sel) end
+        if rowdrag and rowdrag.target == i and rowdrag.from ~= i then   -- where the row will land
+            local ly = (rowdrag.target < rowdrag.from) and y1 or (y1 + ROW_H)
+            out[#out + 1] = rect(x0, ly - 2, w, ly + 2, C.yel)
+        end
     end
     if count == 0 then
         out[#out + 1] = text(x0 + math.floor(FS * 0.9), TAB_H + math.floor(FS * 0.4), "Empty playlist", C.dim, {x0, TAB_H, w, TAB_H + ROW_H})
@@ -398,7 +404,7 @@ local function mouse_xy()
     return m.x or -1, m.y or -1
 end
 
-local press = nil            -- left button held on something in the panel: {x, y, tab, dragging}
+local press = nil            -- left button held on something in the panel: {x, y, tab, row, dragging}
 local function tab_at(x, y)
     if y >= TAB_H then return nil end
     for i, t in ipairs(hits.tabs) do if x >= t.x1 and x < t.x2 then return t, i end end
@@ -416,20 +422,51 @@ local function click_action(x, y)
     end
 end
 
+local function row_at(y)
+    for _, r in ipairs(hits.rows) do if y >= r.y1 and y < r.y2 then return r.index end end
+end
+
 local function left_button(e)
     local x, y = mouse_xy()
     if e.event == "down" then
         local t = tab_at(x, y)
-        press = {x = x, y = y, tab = (t and x < t.close_x1) and t.id or nil, dragging = false}
+        local row = (not t and y >= TAB_H) and row_at(y) or nil
+        if row and active and readonly[active] then row = nil end   -- a tab another window plays is view-only
+        press = {x = x, y = y, tab = (t and x < t.close_x1) and t.id or nil, row = row, dragging = false}
     elseif e.event == "up" then
         local pr = press
         press = nil
+        local rd = rowdrag
+        rowdrag = nil
         if not pr then return end
-        if pr.dragging then save_state() else click_action(pr.x, pr.y) end
+        if rd then
+            if rd.from ~= rd.target then
+                -- mpv moves the entry so that it takes the place of the target entry; moving down needs the one after it
+                mp.commandv("playlist-move", tostring(rd.from - 1), tostring(rd.from < rd.target and rd.target or rd.target - 1))
+                selected = rd.target
+            end
+            redraw()
+        elseif pr.dragging then save_state() else click_action(pr.x, pr.y) end
     end
 end
 
-local function drag_to(x)
+local function drag_row(y)
+    if not press.dragging and math.abs(y - press.y) < 12 then return end
+    press.dragging = true
+    local count = #(mp.get_property_native("playlist") or {})
+    local first = hits.rows[1] and hits.rows[1].index or 1
+    local last = hits.rows[#hits.rows] and hits.rows[#hits.rows].index or first
+    local target = row_at(y)
+    if not target then target = (y < TAB_H + 1) and first or last end
+    target = math.max(1, math.min(count, target))
+    if not rowdrag or rowdrag.target ~= target then
+        rowdrag = {from = press.row, target = target}
+        redraw()
+    end
+end
+
+local function drag_to(x, y)
+    if press and press.row then drag_row(y or press.y); return end
     if not press or not press.tab then return end
     if not press.dragging and math.abs(x - press.x) < 14 then return end
     press.dragging = true
@@ -519,11 +556,11 @@ local function bind(on)
 end
 
 mp.observe_property("mouse-pos", "native", function(_, m)
-    if not m or not shown() then press = nil; bind(false); return end
+    if not m or not shown() then press = nil; rowdrag = nil; bind(false); return end
     local w = dims()
-    if press and not m.hover then press = nil end                 -- released outside the window: cancel
+    if press and not m.hover then press = nil; rowdrag = nil; redraw() end                 -- released outside the window: cancel
     bind((m.hover and m.x >= w - P + EDGE) or press ~= nil)
-    if press and m.hover then drag_to(m.x) end
+    if press and m.hover then drag_to(m.x, m.y) end
 end)
 
 -- ---------------------------------------------------------------- events
@@ -693,6 +730,6 @@ mp.register_script_message("tabs-reopen", reopen_closed)
 mp.register_script_message("tabs-testmouse", function(what, x, y)
     fake_xy = {tonumber(x), tonumber(y)}
     if what == "down" or what == "up" then left_button({event = what})
-    elseif what == "move" then drag_to(fake_xy[1])
+    elseif what == "move" then drag_to(fake_xy[1], fake_xy[2])
     elseif what == "mid" then middle_click() end
 end)

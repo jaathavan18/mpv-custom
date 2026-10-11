@@ -178,12 +178,18 @@ mp.add_key_binding(nil, "strip-edge", function(e)
 end, {complex = true})
 mp.commandv("define-section", SECT, "MBTN_LEFT script-binding strip/strip-edge", "force")
 mp.commandv("enable-section", SECT, "allow-hide-cursor")
+-- Over the panel itself the window must not be dragged either (a drag there is the panel's: reorder rows, drag tabs)
+local SECT_PANEL = "strip-panel"
+mp.commandv("define-section", SECT_PANEL, "", "force")
+mp.commandv("enable-section", SECT_PANEL, "allow-hide-cursor")
 update_area = function()
     local w, h = mp.get_property_number("osd-width") or 0, mp.get_property_number("osd-height") or 0
     if shown() and w > P + 50 then
         mp.set_mouse_area(w - P - edge_zone(), 0, w - P + math.floor(8 * K), h, SECT)
+        mp.set_mouse_area(w - P + math.floor(8 * K), 0, w, h, SECT_PANEL)
     else
         mp.set_mouse_area(0, 0, 0, 0, SECT)
+        mp.set_mouse_area(0, 0, 0, 0, SECT_PANEL)
     end
 end
 mp.observe_property("mouse-pos", "native", function(_, m)

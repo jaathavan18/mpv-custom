@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.1.0
+
+- Playlist panel: drag rows to reorder them. This includes folders you added and that are not opened yet, they are one row each and move like a file.
+- Dragging inside a panel no longer moves the window.
+- Rescan folder: a new file in a folder lands with that folder's own entries, no longer at the end after other folders.
+- Known limit: the list does not scroll by itself while you drag, so on a very long playlist you can only drop onto rows you can see.
+
 ## 1.0.0
 
 - The side strip as its own script: widens the window, keeps the video out from under the panel, resizable by dragging its left edge, remembers the open panel and its width.

@@ -2,7 +2,7 @@
 
 <p align="center">Custom add-ons for <a href="https://mpv.io">mpv</a>.</p>
 
-<p align="center">Version 1.0.0 · <a href="CHANGELOG.md">what changed</a></p>
+<p align="center">Version 1.1.0 · <a href="CHANGELOG.md">what changed</a></p>
 
 <p align="center">
   <a href="https://github.com/jaathavan18/mpv-custom/releases/latest"><strong>Download »</strong></a> ·
@@ -45,7 +45,7 @@ If you try one of these, a note in an issue saying it works (or what broke) is w
 
 **Back up your mpv config folder first** (copy it somewhere). These files are provided as is, without any warranty (see [LICENSE](LICENSE)); you use them at your own risk.
 
-1. Download `mpv-custom-1.0.0.zip` from the [Releases page](https://github.com/jaathavan18/mpv-custom/releases/latest) (the right-hand side of the repo page has a "Releases" box too). Smaller zips for single parts are listed there as well. Extract it into your mpv config folder: the `portable_config` folder next to `mpv.exe` (create it if it is not there), or `%APPDATA%\mpv` if you installed mpv normally. Extract so that the zip's `scripts` folder lands in the config folder's `scripts` folder and its files merge with what is there; do not put the files in a new sub-folder.
+1. Download `mpv-custom-1.1.0.zip` from the [Releases page](https://github.com/jaathavan18/mpv-custom/releases/latest) (the right-hand side of the repo page has a "Releases" box too). Smaller zips for single parts are listed there as well. Extract it into your mpv config folder: the `portable_config` folder next to `mpv.exe` (create it if it is not there), or `%APPDATA%\mpv` if you installed mpv normally. Extract so that the zip's `scripts` folder lands in the config folder's `scripts` folder and its files merge with what is there; do not put the files in a new sub-folder.
 2. Copy the lines from `examples/mpv.conf` into your `mpv.conf`.
 3. The letter keys need nothing more. For the chapter keys add `examples/input-chapters.conf` to your `input.conf`.
 
@@ -78,7 +78,7 @@ Close mpv, back up the config folder, extract the new zip over the old files and
 
 ## Use only some parts
 
-Each part works on its own (each one was tested alone on a bare mpv). On the release page every part also has its own small zip (`mpv-custom-playlist-panel-1.0.0.zip`, `mpv-custom-window-memory-1.0.0.zip` and so on); the playlist and add-ons zips include the side strip they need. Use zips from the same release together. Or copy only what you want from the full zip:
+Each part works on its own (each one was tested alone on a bare mpv). On the release page every part also has its own small zip (`mpv-custom-playlist-panel-1.1.0.zip`, `mpv-custom-window-memory-1.1.0.zip` and so on); the playlist and add-ons zips include the side strip they need. Use zips from the same release together. Or copy only what you want from the full zip:
 
 | Part | Copy | Also needs |
 |---|---|---|
