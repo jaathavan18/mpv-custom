@@ -15,6 +15,7 @@ The strip is the area on the right of the mpv window (`scripts/strip/`). It does
 - Every tab is its own playlist and remembers which file was playing and where. Tabs are stored in your mpv config folder (`tabs-*.json`).
 - A second mpv window opens with the same tabs. A tab that another window is playing is view-only there and is not resumed.
 - Moving between files saves the position, so coming back to a file resumes it.
+- Watched files are drawn dimmer. A file counts as watched once it has played into its last 10% (or to the end); `w` toggles it by hand. The list is kept in `watched.json` in the config folder (file paths only, shared by all tabs and windows; a moved or renamed file counts as new). The first time, the rows before each tab's saved position are marked watched, once. mpv's own resume data is not read.
 
 ## Without Python
 

@@ -21,7 +21,7 @@ if not dir:match("[/\\]$") then dir = dir .. "/" end
 
 -- colours (ASS wants BGR)
 local C = {bg = "&H000000&", tab = "&H0D0D0D&", tabact = "&H1F1F1F&", list = "&H000000&", sel = "&H2B2B2B&",
-           txt = "&HE6E6E6&", dim = "&H9A9A9A&", yel = "&H00D4FF&"}
+           txt = "&HE6E6E6&", dim = "&H9A9A9A&", fade = "&H666666&", yel = "&H00D4FF&"}
 
 -- ---------------------------------------------------------------- storage
 local function read_json(path)
@@ -149,6 +149,62 @@ local function snapshot(t)
 end
 
 local redraw -- forward
+
+-- ---------------------------------------------------------------- watched files (drawn faded)
+-- watched.json (own file, never mpv's resume data): {seeded, files = {normalised path = true}}, shared by all tabs and windows
+local watched_path = dir .. "watched.json"
+local watched, seeded = {}, false
+local function wkey(p) return (absolute(p or ""):gsub("\\", "/"):lower()) end
+local function watched_load()
+    local d = read_json(watched_path)
+    if type(d) ~= "table" then return end
+    local f = {}   -- a fresh table: one parsed from an empty JSON list is an "array" and would lose its string keys when saved
+    if type(d.files) == "table" then for k, v in pairs(d.files) do if type(k) == "string" then f[k] = v end end end
+    watched = f
+    seeded = seeded or d.seeded == true
+end
+local function watched_set(keys, on)   -- merges with what other windows wrote
+    watched_load()
+    for _, k in ipairs(keys) do watched[k] = on or nil end
+    write_json(watched_path, {seeded = seeded, files = watched})
+end
+local cur_key, cur_marked = nil, false
+mp.register_event("file-loaded", function()
+    local p = mp.get_property("path")
+    cur_key = p and wkey(p) or nil
+    cur_marked = cur_key ~= nil and watched[cur_key] == true
+end)
+local function mark_current()
+    if cur_marked or not cur_key or not addon_on("tabs") then return end
+    cur_marked = true
+    watched_set({cur_key}, true)
+    redraw()
+end
+-- watched = played into its last 10 %, or to the end
+mp.observe_property("percent-pos", "number", function(_, pct) if pct and pct >= 90 then mark_current() end end)
+mp.register_event("end-file", function(e) if e.reason == "eof" then mark_current() end end)
+local function toggle_watched(sel)
+    local e = sel and (mp.get_property_native("playlist") or {})[sel]
+    if not e then return end
+    local k = wkey(e.filename)
+    watched_load()
+    local on = not watched[k]
+    watched_set({k}, on)
+    if k == cur_key then cur_marked = on end
+    redraw()
+end
+-- the first time: every row before a tab's saved position counts as watched (once, for the lists that exist now)
+local function seed_watched(order, tabs)
+    watched_load()
+    if seeded then return end
+    local keys = {}
+    for _, id in ipairs(order) do
+        local t = tabs[id]
+        for i = 1, math.min((t.index or 1) - 1, #t.files) do keys[#keys + 1] = wkey(t.files[i]) end
+    end
+    seeded = true
+    watched_set(keys, true)
+end
 
 local function persist_active()
     local t = tabs[active]
@@ -371,10 +427,11 @@ redraw = function()
         if i > count then break end
         local y1 = TAB_H + (r - 1) * ROW_H
         local playing, sel = (i == cur), (i == selected)
+        local seen = watched[wkey(playlist[i].filename)] == true
         if playing or sel then out[#out + 1] = rect(x0, y1, w, y1 + ROW_H, C.sel) end
-        out[#out + 1] = text(x0 + math.floor(FS * 0.4), y1 + ry, string.format("%02d", i), playing and C.yel or C.dim, {x0, y1, x0 + math.floor(FS * 1.4), y1 + ROW_H})
-        out[#out + 1] = text(x0 + math.floor(FS * 1.5), y1 + ry, trunc(row_label(playlist[i]), maxc), playing and C.yel or C.txt, {x0 + math.floor(FS * 1.4), y1, w, y1 + ROW_H})
-        hits.rows[#hits.rows + 1] = {y1 = y1, y2 = y1 + ROW_H, index = i}
+        out[#out + 1] = text(x0 + math.floor(FS * 0.4), y1 + ry, string.format("%02d", i), playing and C.yel or (seen and C.fade or C.dim), {x0, y1, x0 + math.floor(FS * 1.4), y1 + ROW_H})
+        out[#out + 1] = text(x0 + math.floor(FS * 1.5), y1 + ry, trunc(row_label(playlist[i]), maxc), playing and C.yel or (seen and C.dim or C.txt), {x0 + math.floor(FS * 1.4), y1, w, y1 + ROW_H})
+        hits.rows[#hits.rows + 1] = {y1 = y1, y2 = y1 + ROW_H, index = i, seen = seen}
         if rowdrag and rowdrag.from == i then out[#out + 1] = rect(x0, y1, w, y1 + ROW_H, C.sel) end
         if rowdrag and rowdrag.target == i and rowdrag.from ~= i then   -- where the row will land
             local ly = (rowdrag.target < rowdrag.from) and y1 or (y1 + ROW_H)
@@ -533,7 +590,7 @@ local function delete_selected()
 end
 
 local panel_keys = {"tabs-click", "tabs-dbl", "tabs-right", "tabs-mid", "tabs-up", "tabs-down", "tabs-del",
-                    "tabs-kup", "tabs-kdown", "tabs-kpgup", "tabs-kpgdn", "tabs-khome", "tabs-kend", "tabs-kenter"}
+                    "tabs-kup", "tabs-kdown", "tabs-kpgup", "tabs-kpgdn", "tabs-khome", "tabs-kend", "tabs-kenter", "tabs-kwatched"}
 local function bind(on)
     if on == inside then return end
     inside = on
@@ -552,6 +609,7 @@ local function bind(on)
         mp.add_forced_key_binding("HOME", "tabs-khome", function() move_selection(-100000) end)
         mp.add_forced_key_binding("END", "tabs-kend", function() move_selection(100000) end)
         mp.add_forced_key_binding("ENTER", "tabs-kenter", play_selected)
+        mp.add_forced_key_binding("w", "tabs-kwatched", function() toggle_watched(selected) end)
     else
         for _, n in ipairs(panel_keys) do mp.remove_key_binding(n) end
     end
@@ -633,6 +691,7 @@ mp.add_periodic_timer(2, function() if sync_tabs() then redraw() end end)
 -- but plays nothing (the first window is already playing them) until a tab is clicked.
 write_json(live_path(my_pid), {pid = my_pid, started = launch_time})
 load_all()
+seed_watched(order, tabs)
 if #order == 0 then
     local t = new_tab()
     active = t.id
@@ -739,6 +798,13 @@ end)
 mp.register_script_message("tabs-reopen", reopen_closed)
 -- test hook: act as if the mouse did <what> at x,y (the headless test window is never "hovered")
 mp.register_script_message("tabs-testdel", delete_selected)   -- test hook
+mp.register_script_message("tabs-testwatched", function(what)   -- test hook
+    if what == "toggle" then toggle_watched(selected)
+    else
+        local o = {}; for _, r in ipairs(hits.rows) do if r.index then o[#o + 1] = r.index .. (r.seen and ":W" or ":-") end end
+        print("ROWS " .. table.concat(o, " ") .. " seeded=" .. tostring(seeded))
+    end
+end)
 mp.register_script_message("tabs-testscroll", function(n) if n == "?" then print("SCROLL=" .. scroll .. " selected=" .. tostring(selected)) else scroll = tonumber(n) or 0; redraw() end end)   -- test hook
 mp.register_script_message("tabs-testmouse", function(what, x, y)
     fake_xy = {tonumber(x), tonumber(y)}

@@ -16,7 +16,8 @@
 | Double-click a row | play it |
 | Mouse wheel over the list | scroll |
 | Double-click or right-click a tab | rename it (tabs are named after their folder until you rename them) |
-| Del | remove the selected row |
+| Del | remove the selected row (the next row is then selected, so Del again removes it) |
+| w | mark the selected row watched or unwatched (mouse over the panel) |
 | Up / Down / PgUp / PgDn / Home / End | move the selection (mouse over the panel) |
 | Enter | play the selected row (mouse over the panel) |
 | Drag a row | reorder the playlist (a folder that is not opened yet is one row and moves too) |

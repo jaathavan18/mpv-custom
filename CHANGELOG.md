@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Playlist panel: files you have watched are drawn dimmer. They are marked once played into the last 10% (or to the end), `w` toggles a row by hand, and the first run marks the rows before each tab's saved position. Kept in `watched.json`.
 - Fixed: deleting rows above the playing file no longer scrolls the playlist to the playing file, so you can keep pressing Del down the list.
 - Panels now work in full screen: the video shrinks beside the panel (the window cannot grow there) and the strip keeps the width you chose. `examples/hello-panel.lua` and `docs/PANEL.md` follow.
 - Playlist panel: Del selects the next row, so pressing it again removes the next one.
