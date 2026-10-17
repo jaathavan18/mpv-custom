@@ -3094,7 +3094,11 @@ local function render_logo()
     local display_h = 360
     local display_w = display_h * state.osd_dimensions.aspect
     -- logo is rendered at 2^(6-1) = 32 times resolution with size 1800x1800
-    local icon_x, icon_y = (display_w - 1800 / 32) / 2, (display_h - 1800 / 32) / 2
+    -- centre of the video side: the side strip takes a margin off one side of the window
+    local ml = mp.get_property_number("video-margin-ratio-left") or 0
+    local mr = mp.get_property_number("video-margin-ratio-right") or 0
+    local cx = display_w * (ml + 1 - mr) / 2
+    local icon_x, icon_y = cx - 1800 / 64, (display_h - 1800 / 32) / 2
     local line_prefix = ("{\\rDefault\\an7\\1a&H00&\\bord0\\shad0\\pos(%f,%f)}"):format(icon_x,
                                                                                         icon_y)
 
@@ -3115,7 +3119,7 @@ local function render_logo()
 
     if state.idle_active then
         ass:new_event()
-        ass:pos(display_w / 2, icon_y + 65)
+        ass:pos(cx, icon_y + 65)
         ass:an(8)
         ass:append("Drop files or URLs to play here.")
     end
@@ -3265,6 +3269,7 @@ observe_cached("border", request_init_resize)
 observe_cached("title-bar", request_init_resize)
 observe_cached("window-maximized", request_init_resize)
 observe_cached("idle-active", request_tick)
+observe_cached("video-margin-ratio-right", request_tick)
 
 mp.register_event("file-loaded", function()
     state.file_loaded = true

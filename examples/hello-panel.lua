@@ -1,5 +1,5 @@
 -- hello-panel: the smallest panel for the side strip (scripts/strip). Copy this file to your scripts folder.
--- F8 shows / hides it; the strip widens the window, hides it in full screen, and lets you drag its edge.
+-- F8 shows / hides it; the strip widens the window (in full screen it shrinks the video instead), and lets you drag its edge.
 -- A panel draws only while user-data/strip/active is its own id, and asks the strip to open or close it.
 local mp = require 'mp'
 local ID = "hello"
@@ -14,7 +14,7 @@ local function redraw()
         told = true
         mp.commandv("script-message-to", "strip", "strip-minwidth", ID, tostring(z.FS * 10))
     end
-    if mp.get_property_native("user-data/strip/active") ~= ID or mp.get_property_native("fullscreen") or w <= z.P + 50 then
+    if mp.get_property_native("user-data/strip/active") ~= ID or w <= z.P + 50 then
         overlay:remove(); return
     end
     local x0 = w - z.P

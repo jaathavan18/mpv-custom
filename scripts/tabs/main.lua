@@ -301,7 +301,7 @@ local function dims()
     return w, h
 end
 
-local function shown() return is_active() and not mp.get_property_native("fullscreen") end
+local function shown() return is_active() end
 
 local function rect(x1, y1, x2, y2, col)
     return string.format("{\\an7\\pos(0,0)\\bord0\\shad0\\1c%s\\p1}m %d %d l %d %d l %d %d l %d %d{\\p0}",
@@ -525,8 +525,10 @@ end
 
 local function delete_selected()
     if selected then
+        local count = mp.get_property_number("playlist-count") or 0
         mp.commandv("playlist-remove", tostring(selected - 1))
-        selected = nil
+        selected = (count > 1) and math.min(selected, count - 1) or nil   -- the next row takes the place: Del again removes it
+        redraw()
     end
 end
 
@@ -570,6 +572,8 @@ local function schedule_save()
     save_timer = mp.add_timeout(1.0, persist_active)
 end
 
+-- keep the window (and with it the panel) when the last item is removed; mpv would hide it when there is nothing to play
+if addon_on("tabs") and mp.get_property("force-window") == "no" then mp.set_property("force-window", "yes") end
 mp.observe_property("playlist", "native", function() schedule_save(); redraw() end)
 mp.observe_property("playlist-pos", "number", function()
     local pos = mp.get_property_number("playlist-pos") or 0
@@ -727,6 +731,7 @@ mp.register_script_message("tabs-hits", function()
 end)
 mp.register_script_message("tabs-reopen", reopen_closed)
 -- test hook: act as if the mouse did <what> at x,y (the headless test window is never "hovered")
+mp.register_script_message("tabs-testdel", delete_selected)   -- test hook
 mp.register_script_message("tabs-testmouse", function(what, x, y)
     fake_xy = {tonumber(x), tonumber(y)}
     if what == "down" or what == "up" then left_button({event = what})

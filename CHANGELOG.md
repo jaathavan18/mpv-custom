@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- Panels now work in full screen: the video shrinks beside the panel (the window cannot grow there) and the strip keeps the width you chose. `examples/hello-panel.lua` and `docs/PANEL.md` follow.
+- Playlist panel: Del selects the next row, so pressing it again removes the next one.
+- The window and panel stay open when the playlist is emptied (the playlist panel switches mpv's `force-window` on).
+- The bar's empty-screen logo ("Drop files or URLs") is centred in the video area, not the whole window.
+- Subtitles stay on the video and scale with the picture (`sub-use-margins=no`, `sub-scale-with-window=no`, set after each file loads). Plain subtitles no longer run under the panel.
+
 ## 1.1.0
 
 - Playlist panel: drag rows to reorder them. This includes folders you added and that are not opened yet, they are one row each and move like a file.

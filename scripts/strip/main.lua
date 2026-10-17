@@ -68,7 +68,7 @@ end
 
 local active, widened, side, added = "", false, "R", 0   -- added = how much wider the window was made (what closing takes away again)
 local function fullscreen() return mp.get_property_native("fullscreen") end
-local function shown() return active ~= "" and not fullscreen() end
+local function shown() return active ~= "" end   -- in full screen too: the video shrinks beside the panel, the window cannot grow
 
 local function resize_window(delta)
     local hwnd = mp.get_property_number("window-id")
@@ -86,6 +86,15 @@ local function resize_window(delta)
     msg.warn("resize helper failed: " .. tostring(res and res.error_string) .. " " .. tostring(res and res.stderr))
 end
 
+-- Plain subtitles stay on the video, never in the black borders: mpv counts the strip's space as a border and would
+-- centre them across the whole window, under the panel. This holds with or without the strip open.
+-- Their size follows the picture, not the window: in a window with black bars the text would otherwise be bigger than in full screen.
+-- (Set after a file has loaded: set earlier, the subtitle did not show at all.)
+mp.register_event("file-loaded", function()
+    for _, o in ipairs({"sub-use-margins", "sub-scale-with-window"}) do
+        if mp.get_property(o) ~= "no" then mp.set_property(o, "no") end
+    end
+end)
 local update_area
 local function update_margin()
     local w = mp.get_property_number("osd-width") or 0
@@ -145,7 +154,7 @@ mp.register_script_message("strip-minwidth", function(id, px) if id and tonumber
 -- both ends scale with the window: a small window leaves little room to move the divider, a big one a lot
 local MIN_SHARE, MAX_SHARE = 0.25, 0.60   -- strip width as a share of the window (the video keeps at least 40%)
 local function limits(w)
-    local lo = math.max(math.floor(w * MIN_SHARE), mins[active] or math.floor(260 * K))
+    local lo = math.max(fullscreen() and 0 or math.floor(w * MIN_SHARE), mins[active] or math.floor(260 * K))   -- in full screen the width you chose is kept (a quarter of a big screen is far too wide)
     local hi = math.floor(w * MAX_SHARE)
     return math.min(lo, hi), hi
 end

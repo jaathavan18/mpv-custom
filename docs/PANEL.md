@@ -7,7 +7,8 @@ The strip is the area on the right of the mpv window (`scripts/strip/`). It does
 - Pressing F6 or F7 makes the window wider by the strip's width, so the video keeps its size. Closing shrinks the window back on the same side. If there is no room on the right it grows to the left.
 - F6 and F7 switch between the panels in the same space. The same key again closes it.
 - **Drag the left edge of the strip** to give the video or the panel more room. The window does not change size while you drag. The strip is kept between a quarter and 60% of the window (and never narrower than the panel needs), so a small window leaves little room to move and a big window a lot. Make the window smaller and the strip follows, make it bigger again and the strip returns to the width you chose.
-- The last panel and its width are remembered between runs. In full screen the strip is hidden and comes back when you leave it.
+- The last panel and its width are remembered between runs. In full screen the window cannot grow, so the video shrinks beside the panel instead, and the strip keeps the width you chose.
+- Subtitles: after each file loads the strip sets `sub-use-margins=no` and `sub-scale-with-window=no`. Plain subtitles then stay on the video (mpv would otherwise treat the strip's space as a black border and spread them under the panel) and their size follows the picture, not the window, so a window with black bars shows the same relative size as full screen. This is the same with or without a panel open. A panel of your own that draws over the video should keep to the area left of the strip (`osd-width` minus `user-data/strip/sizes.P`).
 
 ## The playlist panel
 

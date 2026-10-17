@@ -107,7 +107,7 @@ local selected, hits, top = 1, {}, 1
 local function dims() return mp.get_property_number("osd-width") or 0, mp.get_property_number("osd-height") or 0 end
 
 local function redraw()
-    if not visible or mp.get_property_native("fullscreen") then overlay:remove(); return end
+    if not visible then overlay:remove(); return end
     local z = sizes()
     local w, h = dims()
     if w <= z.P + 50 then overlay:remove(); return end
@@ -204,7 +204,7 @@ local function bind(on)
     end
 end
 mp.observe_property("mouse-pos", "native", function(_, m)
-    if not visible or not m or mp.get_property_native("fullscreen") then bind(false); return end
+    if not visible or not m then bind(false); return end
     local z = sizes()
     local w = dims()
     bind(m.hover and m.x >= w - z.P + (z.EDGE or 12))
