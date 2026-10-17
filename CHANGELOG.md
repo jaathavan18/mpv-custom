@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Fixed: deleting rows above the playing file no longer scrolls the playlist to the playing file, so you can keep pressing Del down the list.
 - Panels now work in full screen: the video shrinks beside the panel (the window cannot grow there) and the strip keeps the width you chose. `examples/hello-panel.lua` and `docs/PANEL.md` follow.
 - Playlist panel: Del selects the next row, so pressing it again removes the next one.
 - The window and panel stay open when the playlist is emptied (the playlist panel switches mpv's `force-window` on).

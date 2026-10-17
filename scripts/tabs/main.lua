@@ -575,10 +575,17 @@ end
 -- keep the window (and with it the panel) when the last item is removed; mpv would hide it when there is nothing to play
 if addon_on("tabs") and mp.get_property("force-window") == "no" then mp.set_property("force-window", "yes") end
 mp.observe_property("playlist", "native", function() schedule_save(); redraw() end)
+local last_play_id
 mp.observe_property("playlist-pos", "number", function()
     local pos = mp.get_property_number("playlist-pos") or 0
-    local _, _, _, rows = layout()
-    if pos < scroll or pos >= scroll + rows then scroll = math.max(0, pos - math.floor(rows / 2)) end
+    local entry = (mp.get_property_native("playlist") or {})[pos + 1]
+    local id = entry and entry.id
+    -- follow the playing file only when it really changed: removing rows above it also changes its number, and the list must stay where the user is
+    if id ~= last_play_id then
+        last_play_id = id
+        local _, _, _, rows = layout()
+        if pos < scroll or pos >= scroll + rows then scroll = math.max(0, pos - math.floor(rows / 2)) end
+    end
     schedule_save(); redraw()
 end)
 mp.observe_property("osd-dimensions", "native", function() redraw() end)
@@ -732,6 +739,7 @@ end)
 mp.register_script_message("tabs-reopen", reopen_closed)
 -- test hook: act as if the mouse did <what> at x,y (the headless test window is never "hovered")
 mp.register_script_message("tabs-testdel", delete_selected)   -- test hook
+mp.register_script_message("tabs-testscroll", function(n) if n == "?" then print("SCROLL=" .. scroll .. " selected=" .. tostring(selected)) else scroll = tonumber(n) or 0; redraw() end end)   -- test hook
 mp.register_script_message("tabs-testmouse", function(what, x, y)
     fake_xy = {tonumber(x), tonumber(y)}
     if what == "down" or what == "up" then left_button({event = what})
