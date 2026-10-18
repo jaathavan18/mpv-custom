@@ -96,11 +96,25 @@ mp.register_event("file-loaded", function()
     end
 end)
 local update_area
+-- mpv draws its bars (volume, seek) over the whole window; shrink and shift them so they sit on the video, not under the panel
+local bar_w0, bar_x0 = mp.get_property_number("osd-bar-w"), mp.get_property_number("osd-bar-align-x")
+local function fit_osd_bar(m)
+    if not bar_w0 or not bar_x0 then return end
+    local bw, ax = bar_w0, bar_x0
+    if m > 0 then
+        local b = bar_w0 / 100 * (1 - m)               -- bar width as a share of the window
+        bw = b * 100
+        ax = math.max(-1, math.min(1, -m / (1 - b)))   -- puts the bar's middle on the video's middle
+    end
+    if mp.get_property_number("osd-bar-w") ~= bw then mp.set_property_number("osd-bar-w", bw) end
+    if mp.get_property_number("osd-bar-align-x") ~= ax then mp.set_property_number("osd-bar-align-x", ax) end
+end
 local function update_margin()
     local w = mp.get_property_number("osd-width") or 0
     local m = 0
     if shown() and w > P + 50 then m = math.min(0.9, P / w) end
     if mp.get_property_number("video-margin-ratio-right") ~= m then mp.set_property_number("video-margin-ratio-right", m) end
+    fit_osd_bar(m)
     if update_area then update_area() end
 end
 
