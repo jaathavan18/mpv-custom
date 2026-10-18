@@ -41,6 +41,8 @@ Only plain letters are changed. The add-ons panel can switch them off (then they
 | j / k | audio delay -0.05 / +0.05 s | l | loop: off / all / repeat one |
 | m | mute | q u w x y | unused |
 
+Ctrl+D (same script, same switch): next audio output device, wrapping round; the name is shown on screen.
+
 ## Chapter keys (`scripts/chapter-step.lua` + `examples/input-chapters.conf`)
 | Key | Action |
 |---|---|

@@ -2,6 +2,7 @@
 --   c  cycle crop ratio      l  loop: normal -> all -> repeat one      r  random (shuffle on/off)
 --   s  stop; Space / the play button afterwards plays the same video again from where it stopped (like VLC)
 --   i  keep the bottom bar on screen in fullscreen (press again to let it hide), like VLC
+--   Ctrl+D  next audio output device
 local mp = require 'mp'
 
 local function say(text) mp.osd_message(text, 2) end
@@ -98,6 +99,17 @@ mp.observe_property("pause", "bool", function()
     end
 end)
 mp.register_event("start-file", function() stopped = nil end)
+
+-- Ctrl+D: next audio output device (auto, speakers, monitor, headset ...), wrapping round; the name is shown on screen.
+mp.add_key_binding("Ctrl+d", "cycle-audio-device", function()
+    if not addon_on("letters") then return end
+    local list = mp.get_property_native("audio-device-list") or {}
+    if #list == 0 then say("No audio devices found"); return end
+    local cur, pick = mp.get_property("audio-device"), 1
+    for i, d in ipairs(list) do if d.name == cur then pick = i % #list + 1 end end
+    mp.set_property("audio-device", list[pick].name)
+    say("Audio device: " .. (list[pick].description or list[pick].name))
+end)
 
 -- Letter keys a-z = VLC. Registered here so the add-ons panel can switch them off and on (off = mpv's own letter keys, even if input.conf has the same keys).
 local LETTERS = {

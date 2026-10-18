@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Ctrl+D cycles the audio output device (auto, speakers, monitor, headset ...) and shows its name. Part of the VLC keys add-on.
 - The volume bar, the seek bar and the `t` progress display now sit on the video, not across the whole window, so they no longer run under an open panel.
 - Playlist panel: settings now belong to each tab. Subtitle track, audio track, volume and mute are saved per tab and never leak to another playlist; a new tab starts from your mpv.conf values and existing tabs inherit the current subtitle number and volume once. Delays, speed, zoom, pan, rotation, subtitle size and position and picture settings are not carried or saved: they go back to the player's start values at every file. The subtitle-number and saved-volume add-ons step aside while the playlist panel is on.
 - Playlist panel: files you have watched are drawn dimmer. They are marked once played into the last 10% (or to the end), `w` toggles a row by hand, and the first run marks the rows before each tab's saved position. Kept in `watched.json`.
