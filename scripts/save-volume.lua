@@ -14,7 +14,15 @@ local function addon_on(name)
     return not (ok and type(d) == "table" and d[name] == false)
 end
 
-local f = addon_on("volume") and io.open(state_path, "r")
+-- the playlist panel keeps these settings per tab; while it is on, this script steps aside
+local function tabs_owns()
+    if not addon_on("tabs") then return false end
+    local f = io.open(mp.command_native({"expand-path", "~~/scripts/tabs/main.lua"}), "r")
+    if f then f:close(); return true end
+    return false
+end
+
+local f = addon_on("volume") and not tabs_owns() and io.open(state_path, "r")
 if f then
     local vol, mute = f:read("*n"), f:read("*l")
     f:close()
@@ -23,7 +31,7 @@ if f then
 end
 
 local function save()
-    if not addon_on("volume") then return end
+    if not addon_on("volume") or tabs_owns() then return end
     local vol = mp.get_property_number("volume")
     if not vol then return end
     local out = io.open(state_path, "w")

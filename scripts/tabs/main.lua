@@ -28,7 +28,13 @@ local function read_json(path)
     local f = io.open(path, "r")
     if not f then return nil end
     local s = f:read("*a"); f:close()
-    return utils.parse_json(s)
+    local d = utils.parse_json(s)
+    if type(d) == "table" and type(d.opts) == "table" then   -- an empty saved list comes back as an "array" that loses string keys: use a fresh table
+        local o = {}
+        for k, v in pairs(d.opts) do if type(k) == "string" then o[k] = v end end
+        d.opts = o
+    end
+    return d
 end
 
 local function write_json(path, tbl)
@@ -240,6 +246,7 @@ local function load_tab(t)
     settle()
 end
 
+local apply_tab_volume   -- defined with the per-tab settings at the end of the file
 local function switch_to(id)
     if id == active or not tabs[id] then return end
     local cur = tabs[active]
@@ -258,13 +265,14 @@ local function switch_to(id)
     active = id
     decided = true
     save_state()
+    if apply_tab_volume then apply_tab_volume() end
     load_tab(t)
     redraw()
 end
 
 local function new_tab(name, files, index)
     local t = {id = new_id(), name = name or "New playlist", files = files or {}, index = index or 1,
-               updated = os.time(), autoname = (name == nil)}
+               updated = os.time(), autoname = (name == nil), opts = {}}
     tabs[t.id] = t; order[#order + 1] = t.id
     save_tab(t)
     return t
@@ -811,4 +819,96 @@ mp.register_script_message("tabs-testmouse", function(what, x, y)
     if what == "down" or what == "up" then left_button({event = what})
     elseif what == "move" then drag_to(fake_xy[1], fake_xy[2])
     elseif what == "mid" then middle_click() end
+end)
+
+-- ---------------------------------------------------------------- settings that belong to one tab (no leaking between playlists)
+--  * saved per tab (t.opts): the subtitle and audio track you chose, volume and mute. Within a tab they carry from file to file.
+--  * never carried, never saved: delays, speed, zoom, pan, rotation, subtitle size and position, picture settings. They go back to the
+--    values the player started with (mpv.conf) at every new file, so a change only affects the file you are watching.
+--  * sub-track-memory.lua and save-volume.lua step aside while this is on (they were global).
+local PERFILE = {"sub-delay", "audio-delay", "speed", "video-zoom", "video-pan-x", "video-pan-y", "video-rotate", "panscan",
+                 "sub-pos", "sub-scale", "brightness", "contrast", "saturation", "gamma", "hue"}
+local start_opts = {}
+for _, o in ipairs(PERFILE) do start_opts[o] = mp.get_property(o) end
+local start_volume, start_mute = mp.get_property("volume"), mp.get_property("mute")
+local opts_ready = false
+
+local function my_opts()
+    local t = tabs[active]
+    if not t or switching or not decided or readonly[active] or not addon_on("tabs") then return nil end
+    t.opts = t.opts or {}
+    return t.opts
+end
+
+apply_tab_volume = function()
+    if not addon_on("tabs") then return end
+    local o = (tabs[active] and tabs[active].opts) or {}
+    local v, m = o.volume and tostring(o.volume) or start_volume, o.mute or start_mute
+    if v and mp.get_property("volume") ~= v and tonumber(mp.get_property("volume")) ~= tonumber(v) then mp.set_property("volume", v) end
+    if m and mp.get_property("mute") ~= m then mp.set_property("mute", m) end
+end
+
+local function apply_tab_tracks()
+    local o = (tabs[active] and tabs[active].opts) or {}
+    for _, p in ipairs({{"sid", "sub"}, {"aid", "audio"}}) do
+        local prop, typ, want = p[1], p[2], o[p[1]]
+        local ok = (want == nil)
+        if want == "no" then ok = true
+        elseif want ~= nil then
+            for _, tr in ipairs(mp.get_property_native("track-list") or {}) do if tr.type == typ and tr.id == want then ok = true end end
+        end
+        local target = (want ~= nil and ok) and tostring(want) or "auto"
+        if mp.get_property("options/" .. prop) ~= target then mp.set_property(prop, target) end
+    end
+end
+
+mp.register_event("file-loaded", function()
+    opts_ready = false
+    if addon_on("tabs") and decided and tabs[active] then
+        for o, v in pairs(start_opts) do if v and mp.get_property(o) ~= v then mp.set_property(o, v) end end
+        apply_tab_tracks()
+        apply_tab_volume()
+    end
+    mp.add_timeout(1, function() opts_ready = true end)   -- track changes in the first second are mpv's own choice
+end)
+mp.register_event("end-file", function() opts_ready = false end)
+
+for _, p in ipairs({{"sid", "sid"}, {"aid", "aid"}}) do
+    mp.observe_property(p[1], "native", function(_, v)
+        if not opts_ready then return end
+        local o = my_opts(); if not o then return end
+        local val = (v == false or v == nil) and "no" or v
+        if o[p[2]] ~= val then o[p[2]] = val; schedule_save() end
+    end)
+end
+mp.observe_property("volume", "number", function(_, v)
+    local o = my_opts(); if not o or not v then return end
+    if o.volume ~= v then o.volume = v; schedule_save() end
+end)
+mp.observe_property("mute", "string", function(_, v)
+    local o = my_opts(); if not o or not v then return end
+    if o.mute ~= v then o.mute = v; schedule_save() end
+end)
+
+-- the first time: tabs that have no settings yet inherit what the player uses today (the global subtitle number and volume), once
+local function seed_tab_opts()
+    local sid, vol, mute
+    local f = io.open(dir .. "sub-track.json", "r")
+    if f then local ok, d = pcall(utils.parse_json, f:read("*a") or ""); f:close(); if ok and type(d) == "table" then sid = d.sid end end
+    f = io.open(dir .. "volume.state", "r")
+    if f then vol = f:read("*n"); local rest = f:read("*l"); f:close(); mute = (rest and rest:find("yes")) and "yes" or "no" end
+    for _, id in ipairs(order) do
+        local t = tabs[id]
+        if t and t.opts == nil then
+            t.opts = {sid = sid, volume = vol, mute = vol and mute or nil}
+            save_tab(t)
+        end
+    end
+end
+seed_tab_opts()
+mp.register_script_message("tabs-testopts", function()   -- test hook
+    local o = (tabs[active] and tabs[active].opts) or {}
+    print(string.format("OPTS tab=%s sid=%s aid=%s volume=%s mute=%s | now sid=%s aid=%s volume=%s sub-delay=%s speed=%s zoom=%s",
+        tostring(active), tostring(o.sid), tostring(o.aid), tostring(o.volume), tostring(o.mute),
+        tostring(mp.get_property("sid")), tostring(mp.get_property("aid")), mp.get_property("volume"), mp.get_property("sub-delay"), mp.get_property("speed"), mp.get_property("video-zoom")))
 end)

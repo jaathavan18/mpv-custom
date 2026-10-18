@@ -15,6 +15,14 @@ local function addon_on(name)
     return not (ok and type(d) == "table" and d[name] == false)
 end
 
+-- the playlist panel keeps these settings per tab; while it is on, this script steps aside
+local function tabs_owns()
+    if not addon_on("tabs") then return false end
+    local f = io.open(mp.command_native({"expand-path", "~~/scripts/tabs/main.lua"}), "r")
+    if f then f:close(); return true end
+    return false
+end
+
 local want
 do
     local f = io.open(FILE, "r")
@@ -31,7 +39,7 @@ local ready = false
 mp.register_event("end-file", function() ready = false end)
 mp.register_event("file-loaded", function()
     ready = false
-    if want ~= nil and addon_on("subtitle") then
+    if want ~= nil and addon_on("subtitle") and not tabs_owns() then
         local exists = (want == "no")
         for _, t in ipairs(mp.get_property_native("track-list") or {}) do
             if t.type == "sub" and t.id == want then exists = true end
@@ -42,7 +50,7 @@ mp.register_event("file-loaded", function()
 end)
 
 mp.observe_property("sid", "native", function(_, v)
-    if not ready or not addon_on("subtitle") then return end
+    if not ready or not addon_on("subtitle") or tabs_owns() then return end
     local val = (v == false or v == nil) and "no" or v
     if want ~= val then want = val; save() end
 end)
