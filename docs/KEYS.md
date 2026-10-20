@@ -43,6 +43,8 @@ Only plain letters are changed. The add-ons panel can switch them off (then they
 
 Ctrl+D (same script, same switch): next audio output device, wrapping round; the name is shown on screen.
 
+Alt+I (`scripts/intro-skip/`): undo the last automatic skip of an opening or ending.
+
 ## Chapter keys (`scripts/chapter-step.lua` + `examples/input-chapters.conf`)
 | Key | Action |
 |---|---|

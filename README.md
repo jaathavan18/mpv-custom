@@ -91,6 +91,7 @@ Each part works on its own (each one was tested alone on a bare mpv). On the rel
 | VLC letter keys, stop and resume | `scripts/vlc-keys.lua`, `scripts/rescan-folder.lua` | nothing |
 | Chapter keys (Shift+N / Shift+P) | `scripts/chapter-step.lua` | the lines of `examples/input-chapters.conf` in `input.conf` |
 | Saved volume | `scripts/save-volume.lua` | nothing |
+| Auto skip intro | `scripts/intro-skip/` | `ffmpeg.exe` with chromaprint next to `mpv.exe` ([docs/ADDONS.md](docs/ADDONS.md)) |
 | Position-only resume | nothing to copy | the line `watch-later-options=start` in `mpv.conf` |
 
 ## Configuration

@@ -18,6 +18,7 @@ local KNOWN = {
     {id = "volume",   name = "Saved volume",                            files = {"save-volume"}},
     {id = "chapters", name = "Chapter keys (Shift+N / Shift+P)",        files = {"chapter-step"}},
     {id = "bar",      name = "Bottom bar always visible (windowed)",    files = {"osc-always-windowed"}},
+    {id = "introskip", name = "Auto skip intro (Alt+I undoes)",         files = {"intro-skip"}},
 }
 local ADDONS, registered = {}, {}
 local function installed(files)
