@@ -6,6 +6,23 @@
 --  * Tab files: tabs-<id>.json plus tabs-state.json (order, active tab) in the config folder.
 local mp = require 'mp'
 local utils = require 'mp.utils'
+
+-- numbers you can change in the add-ons panel (F7): read live, then from the saved file, then the default
+local file_values = {}
+do
+    local f = io.open(mp.command_native({"expand-path", "~~/addons-state.json"}), "r")
+    if f then
+        local ok, d = pcall(require("mp.utils").parse_json, f:read("*a") or ""); f:close()
+        if ok and type(d) == "table" and type(d.values) == "table" then
+            for k, v in pairs(d.values) do if type(k) == "string" and tonumber(v) then file_values[k] = tonumber(v) end end
+        end
+    end
+end
+local function setting(key, default)
+    local v = mp.get_property_native("user-data/settings/" .. key)
+    if type(v) == "number" then return v end
+    return file_values[key] or default
+end
 local msg = require 'mp.msg'
 
 -- Sizes come from the strip (user-data/strip/sizes); these are only the starting values.
@@ -174,6 +191,37 @@ local function watched_set(keys, on)   -- merges with what other windows wrote
     for _, k in ipairs(keys) do watched[k] = on or nil end
     write_json(watched_path, {seeded = seeded, files = watched})
 end
+-- watched-log.json: {seq, last, items = {normalised path = {d = calendar day number, s = order number}}}
+-- when each video was marked watched (the day, and a running order), used to take watched videos out of the lists
+local log_path = dir .. "watched-log.json"
+local test_day = 0   -- test hook: moves "today"
+local function day_now()
+    local t = os.date("*t")
+    local y, m = t.year, t.month
+    if m <= 2 then y = y - 1 end
+    local era = math.floor(y / 400)
+    local yoe = y - era * 400
+    local doy = math.floor((153 * ((m + 9) % 12) + 2) / 5) + t.day - 1
+    return era * 146097 + yoe * 365 + math.floor(yoe / 4) - math.floor(yoe / 100) + doy - 719468 + test_day
+end
+local wlog = {seq = 0, items = {}}
+local function log_load()
+    local d = read_json(log_path)
+    local items = {}
+    if type(d) == "table" and type(d.items) == "table" then
+        for k, v in pairs(d.items) do if type(k) == "string" and type(v) == "table" then items[k] = {d = tonumber(v.d), s = tonumber(v.s) or 0} end end
+    end
+    wlog = {seq = type(d) == "table" and tonumber(d.seq) or 0, last = type(d) == "table" and tonumber(d.last) or nil, items = items}
+end
+local function log_save() write_json(log_path, wlog) end
+local function log_note(k)   -- a video was just marked watched
+    log_load()
+    wlog.seq = wlog.seq + 1
+    wlog.items[k] = {d = day_now(), s = wlog.seq}
+    log_save()
+end
+local function log_drop(k) log_load(); if wlog.items[k] then wlog.items[k] = nil; log_save() end end
+
 local cur_key, cur_marked = nil, false
 mp.register_event("file-loaded", function()
     local p = mp.get_property("path")
@@ -184,10 +232,11 @@ local function mark_current()
     if cur_marked or not cur_key or not addon_on("tabs") then return end
     cur_marked = true
     watched_set({cur_key}, true)
+    log_note(cur_key)
     redraw()
 end
 -- watched = played into its last 10 %, or to the end
-mp.observe_property("percent-pos", "number", function(_, pct) if pct and pct >= 90 then mark_current() end end)
+mp.observe_property("percent-pos", "number", function(_, pct) if pct and pct >= setting("tabs_watched_pct", 90) then mark_current() end end)
 mp.register_event("end-file", function(e) if e.reason == "eof" then mark_current() end end)
 local function toggle_watched(sel)
     local e = sel and (mp.get_property_native("playlist") or {})[sel]
@@ -196,6 +245,7 @@ local function toggle_watched(sel)
     watched_load()
     local on = not watched[k]
     watched_set({k}, on)
+    if on then log_note(k) else log_drop(k) end
     if k == cur_key then cur_marked = on end
     redraw()
 end
@@ -911,4 +961,229 @@ mp.register_script_message("tabs-testopts", function()   -- test hook
     print(string.format("OPTS tab=%s sid=%s aid=%s volume=%s mute=%s | now sid=%s aid=%s volume=%s sub-delay=%s speed=%s zoom=%s",
         tostring(active), tostring(o.sid), tostring(o.aid), tostring(o.volume), tostring(o.mute),
         tostring(mp.get_property("sid")), tostring(mp.get_property("aid")), mp.get_property("volume"), mp.get_property("sub-delay"), mp.get_property("speed"), mp.get_property("video-zoom")))
+end)
+
+-- ---------------------------------------------------------------- take watched videos out of the lists (add-on "autoclean", off until switched on in F7)
+--  * Only the playlist entry goes; the file on disk is never touched.
+--  * A watched video leaves when it was watched autoclean_days (7) calendar days ago, or when its whole group is watched and
+--    autoclean_videos (10) videos from outside the group were watched after it.
+--  * A group is a folder with everything nested in it. Folders side by side are one group (their parent) when everything with videos under
+--    that parent is in the list. Worked out from the file paths and a look at the folders on disk.
+--  * Runs a few seconds after start, when switched on, and when the day changes. The playing video stays until the next run.
+local function clean_on()
+    local v = mp.get_property_native("user-data/addons/autoclean")
+    if v then return v == "on" end
+    local f = io.open(mp.command_native({"expand-path", "~~/addons-state.json"}), "r")
+    if not f then return false end
+    local ok, d = pcall(utils.parse_json, f:read("*a") or ""); f:close()
+    return ok and type(d) == "table" and d.autoclean == true
+end
+
+local VEXT = {mkv = true, mp4 = true, m4v = true, avi = true, mov = true, webm = true, ts = true,
+              m2ts = true, wmv = true, flv = true, mpg = true, mpeg = true}
+local function dir_of(p) return p:gsub("\\", "/"):match("^(.*)/[^/]*$") or "" end
+
+local reads = 0
+local function has_videos(d, depth)   -- a video here or (down to depth) below; "too much to look at" counts as yes (no merge)
+    reads = reads + 1
+    if reads > 400 then return true end
+    local files = utils.readdir(d, "files")
+    if not files then return true end
+    for _, n in ipairs(files) do
+        local e = n:match("%.([^.]+)$")
+        if e and VEXT[e:lower()] then return true end
+    end
+    if depth > 0 then
+        for _, n in ipairs(utils.readdir(d, "dirs") or {}) do
+            if has_videos(d .. "/" .. n, depth - 1) then return true end
+        end
+    end
+    return false
+end
+
+-- group of every path (gid[i]) and the top folder of each group (tops[gid]), folders written lower case with /
+local function make_groups(paths)
+    local real, parent, of = {}, {}, {}
+    local function find(x) while parent[x] ~= x do parent[x] = parent[parent[x]]; x = parent[x] end return x end
+    local function union(a, b) a, b = find(a), find(b); if a ~= b then parent[a] = b end end
+    for i, p in ipairs(paths) do
+        if not is_remote(p) then
+            local d = dir_of(absolute(p))
+            local k = d:lower()
+            real[k] = d; parent[k] = parent[k] or k
+            of[i] = k
+        end
+    end
+    local keys = {}
+    for k in pairs(real) do keys[#keys + 1] = k end
+    for _, a in ipairs(keys) do
+        for _, b in ipairs(keys) do
+            if a ~= b and a:sub(1, #b + 1) == b .. "/" then union(a, b) end   -- a is inside b
+        end
+    end
+    reads = 0
+    for _ = 1, 6 do
+        local top = {}
+        for k in pairs(real) do
+            local r = find(k)
+            if not top[r] or #k < #top[r] then top[r] = k end
+        end
+        local by_parent = {}
+        for _, t in pairs(top) do
+            local p = dir_of(real[t])
+            if p:find("/", 1, true) and not p:match("^%a:$") then   -- not a drive
+                local pl = p:lower()
+                by_parent[pl] = by_parent[pl] or {p = p, tops = {}}
+                table.insert(by_parent[pl].tops, t)
+            end
+        end
+        local changed = false
+        for pl, e in pairs(by_parent) do
+            if #e.tops >= 2 and not real[pl] then
+                local kids = utils.readdir(e.p, "dirs")
+                local ok = kids ~= nil
+                for _, c in ipairs(kids or {}) do
+                    local ck, covered = pl .. "/" .. c:lower(), false
+                    for _, t in ipairs(e.tops) do if ck == t or ck:sub(1, #t + 1) == t .. "/" then covered = true end end
+                    if not covered and has_videos(e.p .. "/" .. c, 4) then ok = false; break end
+                end
+                if ok then
+                    real[pl] = e.p; parent[pl] = pl
+                    for _, t in ipairs(e.tops) do union(t, pl) end
+                    changed = true
+                end
+            end
+        end
+        if not changed then break end
+    end
+    local gid, tops = {}, {}
+    for k in pairs(real) do
+        local r = find(k)
+        if not tops[r] or #k < #tops[r] then tops[r] = k end
+    end
+    for i, k in pairs(of) do gid[i] = find(k) end
+    return gid, tops
+end
+
+-- positions in paths of the watched videos that should leave now
+local function to_remove(paths, keep_key)
+    local days, need = setting("autoclean_days", 7), setting("autoclean_videos", 10)
+    local today = day_now()
+    local gid, tops = make_groups(paths)
+    local members = {}
+    for i, g in pairs(gid) do members[g] = members[g] or {}; table.insert(members[g], i) end
+    local out = {}
+    for g, list in pairs(members) do
+        local all, last, aged = true, 0, {}
+        for _, i in ipairs(list) do
+            local k = wkey(paths[i])
+            if watched[k] then
+                local it = wlog.items[k]
+                if it then
+                    if it.s > last then last = it.s end
+                    if it.d and today - it.d >= days then aged[i] = true end
+                end
+            else
+                all = false
+            end
+        end
+        local outside = 0
+        if all then
+            local top = tops[g] .. "/"
+            for k, it in pairs(wlog.items) do
+                if it.s > last and watched[k] and k:sub(1, #top) ~= top then outside = outside + 1 end
+            end
+        end
+        local group_done = all and outside >= need
+        for _, i in ipairs(list) do
+            local k = wkey(paths[i])
+            if watched[k] and k ~= keep_key and (aged[i] or group_done) then out[#out + 1] = i end
+        end
+    end
+    table.sort(out)
+    return out
+end
+
+local last_run_day
+local function clean_run()
+    if not decided or switching or not addon_on("tabs") or not clean_on() then return 0 end
+    last_run_day = day_now()
+    watched_load(); log_load()
+    for k in pairs(watched) do if not wlog.items[k] then wlog.items[k] = {d = last_run_day, s = 0} end end   -- marked before the log: counted from today
+    for k in pairs(wlog.items) do if not watched[k] then wlog.items[k] = nil end end
+    log_save()
+    local removed = 0
+    for _, id in ipairs(order) do
+        local t = tabs[id]
+        if id == active then
+            if not readonly[id] then
+                local pl = mp.get_property_native("playlist") or {}
+                local paths = {}
+                for i, e in ipairs(pl) do paths[i] = e.filename end
+                local rm = to_remove(paths, cur_key)
+                for n = #rm, 1, -1 do
+                    local e = pl[rm[n]]
+                    if not (e.current or e.playing) then mp.commandv("playlist-remove", tostring(rm[n] - 1)); removed = removed + 1 end
+                end
+            end
+        elseif t and not (t.live_pid and t.live_pid ~= my_pid and pid_alive(t.live_pid)) then
+            local fresh = read_tab(id)
+            if fresh and type(fresh.files) == "table" then tabs[id] = fresh; t = fresh end
+            local rm = to_remove(t.files, nil)
+            if #rm > 0 then
+                local drop, kept, before = {}, {}, 0
+                for _, i in ipairs(rm) do drop[i] = true end
+                for i, f in ipairs(t.files) do
+                    if not drop[i] then kept[#kept + 1] = f elseif i < (t.index or 1) then before = before + 1 end
+                end
+                t.files = kept
+                t.index = math.max(1, math.min((t.index or 1) - before, #kept))
+                save_tab(t)
+                removed = removed + #rm
+            end
+        end
+    end
+    if removed > 0 then
+        msg.info("autoclean: removed " .. removed .. " watched from the lists")
+        mp.osd_message(string.format("Removed %d watched video%s from the playlists", removed, removed == 1 and "" or "s"), 3)
+        mp.add_timeout(0.5, function() persist_active(); redraw() end)
+    end
+    return removed
+end
+
+local function clean_check()
+    if decided and not switching and last_run_day ~= day_now() then clean_run() end
+end
+mp.add_timeout(6, clean_check)
+mp.add_periodic_timer(60, clean_check)
+do
+    local first = true
+    mp.observe_property("user-data/addons/autoclean", "native", function()   -- switched on in F7
+        if first then first = false; return end
+        last_run_day = nil
+        mp.add_timeout(1, clean_check)
+    end)
+end
+
+mp.register_script_message("tabs-testmark", function(path, off)   -- test hook: mark a path watched `off` days from today
+    local k = wkey(path)
+    watched_set({k}, true); log_load()
+    wlog.seq = wlog.seq + 1
+    wlog.items[k] = {d = day_now() + (tonumber(off) or 0), s = wlog.seq}
+    log_save(); redraw()
+end)
+mp.register_script_message("tabs-testclean", function(shift)   -- test hook: pretend it is `shift` days later and run
+    test_day = tonumber(shift) or 0
+    print("CLEAN removed=" .. clean_run())
+end)
+mp.register_script_message("tabs-testlist", function()   -- test hook: print every tab's list (file names)
+    for i, id in ipairs(order) do
+        local names = {}
+        if id == active then
+            for _, e in ipairs(mp.get_property_native("playlist") or {}) do names[#names + 1] = base(e.filename) end
+        else
+            for _, f in ipairs(tabs[id].files) do names[#names + 1] = base(f) end
+        end
+        print(string.format("LIST tab%d%s idx=%s n=%d: %s", i, id == active and "*" or "", tostring(tabs[id].index), #names, table.concat(names, " ")))
+    end
 end)

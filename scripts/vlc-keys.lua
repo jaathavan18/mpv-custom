@@ -5,6 +5,23 @@
 --   Ctrl+D  next audio output device
 local mp = require 'mp'
 
+-- numbers you can change in the add-ons panel (F7): read live, then from the saved file, then the default
+local file_values = {}
+do
+    local f = io.open(mp.command_native({"expand-path", "~~/addons-state.json"}), "r")
+    if f then
+        local ok, d = pcall(require("mp.utils").parse_json, f:read("*a") or ""); f:close()
+        if ok and type(d) == "table" and type(d.values) == "table" then
+            for k, v in pairs(d.values) do if type(k) == "string" and tonumber(v) then file_values[k] = tonumber(v) end end
+        end
+    end
+end
+local function setting(key, default)
+    local v = mp.get_property_native("user-data/settings/" .. key)
+    if type(v) == "number" then return v end
+    return file_values[key] or default
+end
+
 local function say(text) mp.osd_message(text, 2) end
 
 -- add-on switch: the add-ons panel sets user-data/addons/<name> to "on"/"off"; without the panel everything stays on
@@ -119,11 +136,11 @@ local LETTERS = {
     {"d", [[cycle deinterlace]]},
     {"e", [[frame-step]]},
     {"f", [[cycle fullscreen]]},
-    {"g", [[add sub-delay -0.05]]},
-    {"h", [[add sub-delay 0.05]]},
+    {"g", function() mp.commandv("add", "sub-delay", tostring(-setting("letters_delay_step", 0.05))) end},
+    {"h", function() mp.commandv("add", "sub-delay", tostring(setting("letters_delay_step", 0.05))) end},
     {"i", [[script-message vlc-bar]]},
-    {"j", [[add audio-delay -0.05]]},
-    {"k", [[add audio-delay 0.05]]},
+    {"j", function() mp.commandv("add", "audio-delay", tostring(-setting("letters_delay_step", 0.05))) end},
+    {"k", function() mp.commandv("add", "audio-delay", tostring(setting("letters_delay_step", 0.05))) end},
     {"l", [[script-message vlc-loop]]},
     {"m", [[cycle mute]]},
     {"n", [[script-message rescan-folder-next]]},
@@ -157,7 +174,7 @@ local function set_letters(on)
         mp.remove_key_binding("vlc-letter-" .. k)
         mp.remove_key_binding("vlc-stock-" .. k)
         if on then
-            mp.add_key_binding(k, "vlc-letter-" .. k, function() mp.command(e[2]) end, {repeatable = true})
+            mp.add_key_binding(k, "vlc-letter-" .. k, function() if type(e[2]) == "function" then e[2]() else mp.command(e[2]) end end, {repeatable = true})
         else
             -- forced, so it wins over a copy of the same keys in input.conf: off really means mpv's own keys
             local cmd = STOCK[k] or "ignore"

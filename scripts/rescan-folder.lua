@@ -4,15 +4,31 @@
 --  * The first look at a folder only records what is there (mpv's own autocreate-playlist already added it).
 --    Exception: after a saved session was restored, files newer than that session are added (they arrived while mpv was closed).
 --  * Later looks add only files that are new, so items you removed or never added are not forced back in.
---  * Files younger than MIN_AGE seconds are skipped (they may still be copying) and picked up on a later look.
+--  * Files younger than 10 seconds (changeable in F7) are skipped (they may still be copying) and picked up on a later look.
 --  * ".partial." files (unfinished conversions) are ignored.
 local mp = require 'mp'
 local utils = require 'mp.utils'
+
+-- numbers you can change in the add-ons panel (F7): read live, then from the saved file, then the default
+local file_values = {}
+do
+    local f = io.open(mp.command_native({"expand-path", "~~/addons-state.json"}), "r")
+    if f then
+        local ok, d = pcall(require("mp.utils").parse_json, f:read("*a") or ""); f:close()
+        if ok and type(d) == "table" and type(d.values) == "table" then
+            for k, v in pairs(d.values) do if type(k) == "string" and tonumber(v) then file_values[k] = tonumber(v) end end
+        end
+    end
+end
+local function setting(key, default)
+    local v = mp.get_property_native("user-data/settings/" .. key)
+    if type(v) == "number" then return v end
+    return file_values[key] or default
+end
 local msg = require 'mp.msg'
 
 local EXT = {mkv = true, mp4 = true, m4v = true, avi = true, mov = true, webm = true, ts = true,
              m2ts = true, wmv = true, flv = true, mpg = true, mpeg = true}
-local MIN_AGE = 10
 local seen = {} -- normalised directory -> set of normalised file paths already considered
 local since = nil -- set by remember-session.lua after a restore: time the restored session was last saved
 
@@ -60,7 +76,7 @@ local function rescan()
                 set[n] = true
             elseif not set[n] then
                 local info = utils.file_info(full)
-                if info and os.time() - info.mtime >= MIN_AGE then
+                if info and os.time() - info.mtime >= setting("letters_new_file_wait", 10) then
                     fresh[#fresh + 1] = {name = name, full = full}
                     set[n] = true
                 end

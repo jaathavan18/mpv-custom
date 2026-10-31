@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Numbers you can change in the add-ons panel (F7): the timings of Auto skip intro, the watched percentage, the chapter key pause, the g h j k delay step, the new-file wait, and mpv's key repeat (how long before a held key repeats and how fast). "Reset all settings" restores them. Table in `docs/ADDONS.md`.
+- New add-on: Remove watched videos from playlists. A watched video leaves the playlist after 7 days, or when its folder is fully watched and 10 videos from other folders were watched after it. Never deletes files, off until switched on, days and count are settings.
+- Auto skip intro: the first video of each opening or ending plays it through, the others skip it. Setting "First play kept". The longest repeat it accepts is now 300 seconds (was 150) and can be changed.
 - New add-on: Auto skip intro (`scripts/intro-skip/`). It finds the opening and the ending song by comparing the audio of the episodes in the playlist (ffmpeg with chromaprint, not included), skips them 3 seconds in and lands 3 seconds before the end, says "Skipped", and each song is skipped up to 2 times per episode. Alt+I undoes a skip. It has its own switch in the add-ons panel.
 - Ctrl+D cycles the audio output device (auto, speakers, monitor, headset ...) and shows its name. Part of the VLC keys add-on.
 - The volume bar, the seek bar and the `t` progress display now sit on the video, not across the whole window, so they no longer run under an open panel.

@@ -9,19 +9,31 @@
 --    script-opts `introskip-ffmpeg=...`.
 local mp = require 'mp'
 local utils = require 'mp.utils'
+
+-- numbers you can change in the add-ons panel (F7): read live, then from the saved file, then the default
+local file_values = {}
+do
+    local f = io.open(mp.command_native({"expand-path", "~~/addons-state.json"}), "r")
+    if f then
+        local ok, d = pcall(require("mp.utils").parse_json, f:read("*a") or ""); f:close()
+        if ok and type(d) == "table" and type(d.values) == "table" then
+            for k, v in pairs(d.values) do if type(k) == "string" and tonumber(v) then file_values[k] = tonumber(v) end end
+        end
+    end
+end
+local function setting(key, default)
+    local v = mp.get_property_native("user-data/settings/" .. key)
+    if type(v) == "number" then return v end
+    return file_values[key] or default
+end
 local okbit, bitlib = pcall(require, "bit")
 if not okbit then bitlib = bit32 end
 local bxor, band, rshift = bitlib.bxor, bitlib.band, bitlib.rshift
 
 local ITEM = 0.1238          -- seconds per fingerprint item (chromaprint)
 local WINDOW = 2.0           -- how far past its last matching item the opening ends (measured on test episodes)
-local REGION = 0.4           -- an opening lies in the first 40% of an episode, an ending in the last 40%
-local MIN_S, MAX_S = 15, 150 -- an opening is between these lengths
+-- (numbers you can change in F7: skip_start, skip_end, max_skips, min_len, max_len, region, batch, msg_time)
 local BRIDGE_S = 10          -- a different bit shorter than this inside the opening does not split it
-local EARLY = 3.0            -- land this many seconds before the end of the opening
-local S_LATE = 3.0           -- skip starts this many seconds after the opening starts to play
-local ED_LATE, ED_EARLY = 3.0, 3.0   -- same for the ending: start 3 s into it, land 3 s before its end
-local PEERS_MAX = 12         -- episodes compared at once
 local DIST = 9               -- bits (of 32) that may differ, averaged over about a second
 local MIN_FRAC = 0.6         -- share of the matched stretch that really matches
 
@@ -180,7 +192,7 @@ local function stretches(A, B, d)
             local a, z = rs, last
             while a <= z - SOLID + 1 and not solid(a) do a = a + 1 end
             while z >= a + SOLID - 1 and not solid(z - SOLID + 1) do z = z - 1 end
-            if z - a + 1 >= SOLID and (z - a) * ITEM + WINDOW >= MIN_S then
+            if z - a + 1 >= SOLID and (z - a) * ITEM + WINDOW >= setting("introskip_min_len", 15) then
                 local n = 0
                 for j = a, z do if good[j] then n = n + 1 end end
                 if n / (z - a + 1) >= MIN_FRAC then out[#out + 1] = {bs = a, be = z} end
@@ -204,7 +216,7 @@ local function common(A, B)
     for _, d in ipairs(shifts(A, B)) do
         for _, r in ipairs(stretches(A, B, d)) do
             local len = (r.be - r.bs) * ITEM + WINDOW
-            if len >= MIN_S and len <= MAX_S then
+            if len >= setting("introskip_min_len", 15) and len <= setting("introskip_max_len", 300) then
                 found[#found + 1] = {a = {(r.bs + d - 1) * ITEM, (r.be + d - 1) * ITEM + WINDOW},
                                      b = {(r.bs - 1) * ITEM, (r.be - 1) * ITEM + WINDOW}, len = len}
             end
@@ -236,10 +248,13 @@ local function choose(cands)
         if not best or score > bestscore or (score == bestscore and c.e - c.s > best.c.e - best.c.s) then best, bestscore = {c = c, group = group}, score end
     end
     if not best then return nil end
-    local ss, ee = {}, {}
-    for _, g in ipairs(best.group) do ss[#ss + 1] = g.s; ee[#ee + 1] = g.e end
+    local ss, ee, with, seen = {}, {}, {}, {}
+    for _, g in ipairs(best.group) do
+        ss[#ss + 1] = g.s; ee[#ee + 1] = g.e
+        if g.with and not seen[g.with] then seen[g.with] = true; with[#with + 1] = g.with end
+    end
     table.sort(ss); table.sort(ee)
-    return {s = ss[math.ceil(#ss / 2)], e = ee[math.ceil(#ee / 2)]}
+    return {s = ss[math.ceil(#ss / 2)], e = ee[math.ceil(#ee / 2)], with = with}   -- with: the videos that have this same stretch
 end
 
 -- ---------------------------------------------------------------- analysing a folder
@@ -260,9 +275,19 @@ local function analyse(set, done)
                 for n, e in ipairs(set) do
                     local op, ed = choose(cands[n]), choose(ends[n])
                     local name = e.path:match("[^/\\]*$")
+                    local old = results[e.key]
+                    local legacy = old and old.ow == nil and old.ew == nil   -- found before the first play was kept: it has been heard
                     local r = {v = 2, n = #set}
-                    if op then r.s, r.e = op.s, op.e; log("%s: opening %.1f - %.1f (%d matches)", name, op.s, op.e, #cands[n]) end
-                    if ed then r.es, r.ee = ed.s, ed.e; log("%s: ending %.1f - %.1f (%d matches)", name, ed.s, ed.e, #ends[n]) end
+                    if op then
+                        r.s, r.e, r.ow = op.s, op.e, op.with
+                        r.heard_op = (old and old.heard_op) or (legacy and old.s ~= nil) or nil
+                        log("%s: opening %.1f - %.1f (%d matches)", name, op.s, op.e, #cands[n])
+                    end
+                    if ed then
+                        r.es, r.ee, r.ew = ed.s, ed.e, ed.with
+                        r.heard_ed = (old and old.heard_ed) or (legacy and old.es ~= nil) or nil
+                        log("%s: ending %.1f - %.1f (%d matches)", name, ed.s, ed.e, #ends[n])
+                    end
                     if not op and not ed then r.none = true; log("%s: no opening or ending found", name) end
                     results[e.key] = r
                 end
@@ -274,10 +299,12 @@ local function analyse(set, done)
                 local da, db = #A * ITEM, #B * ITEM
                 for _, c in ipairs(common(A, B)) do
                     local ma, mb = (c.a[1] + c.a[2]) / 2 / da, (c.b[1] + c.b[2]) / 2 / db   -- where in each episode the stretch lies
-                    if ma < REGION then cands[i][#cands[i] + 1] = {s = c.a[1], e = c.a[2]}
-                    elseif ma > 1 - REGION then ends[i][#ends[i] + 1] = {s = c.a[1], e = c.a[2]} end
-                    if mb < REGION then cands[j][#cands[j] + 1] = {s = c.b[1], e = c.b[2]}
-                    elseif mb > 1 - REGION then ends[j][#ends[j] + 1] = {s = c.b[1], e = c.b[2]} end
+                    local R = setting("introskip_region", 40) / 100
+                    local ki, kj = set[i].key, set[j].key
+                    if ma < R then cands[i][#cands[i] + 1] = {s = c.a[1], e = c.a[2], with = kj}
+                    elseif ma > 1 - R then ends[i][#ends[i] + 1] = {s = c.a[1], e = c.a[2], with = kj} end
+                    if mb < R then cands[j][#cands[j] + 1] = {s = c.b[1], e = c.b[2], with = ki}
+                    elseif mb > 1 - R then ends[j][#ends[j] + 1] = {s = c.b[1], e = c.b[2], with = ki} end
                 end
             end
             j = j + 1
@@ -300,7 +327,7 @@ local function analyse(set, done)
     pump()
 end
 
--- episodes of the playing file's folder that are in the playlist (at most PEERS_MAX, nearest first)
+-- videos of the playing file's folder that are in the playlist (at most the batch size, nearest first)
 local function folder_set()
     local path = mp.get_property("path")
     if not is_local(path) then return nil end
@@ -312,7 +339,7 @@ local function folder_set()
         end
     end
     table.sort(list, function(a, b) return a.near < b.near end)
-    while #list > PEERS_MAX do table.remove(list) end
+    while #list > setting("introskip_batch", 12) do table.remove(list) end
     table.sort(list, function(a, b) return a.path < b.path end)
     return list
 end
@@ -345,7 +372,24 @@ end
 refresh_current = function()
     local me = mp.get_property("path") and file_key(mp.get_property("path"))
     local r = me and results[me]
-    current = (r and r.v == 2 and not r.none) and {s = r.s, e = r.e, es = r.es, ee = r.ee} or nil
+    current = (r and r.v == 2 and not r.none) and {s = r.s, e = r.e, es = r.es, ee = r.ee, key = me} or nil
+    if current then
+        -- first of its kind: nobody with this same opening / ending has been heard yet, so this one plays through (decided once per play)
+        for _, k in ipairs({"op", "ed"}) do
+            local z = zone[k]
+            if z.hold == nil then
+                local partners = r[k == "op" and "ow" or "ew"]
+                local held = setting("introskip_first_play", 1) >= 1 and partners ~= nil and not r["heard_" .. k]
+                if held then
+                    for _, p in ipairs(partners) do
+                        local o = results[p]
+                        if o and o["heard_" .. k] then held = false; break end
+                    end
+                end
+                z.hold = held
+            end
+        end
+    end
 end
 
 mp.register_event("start-file", function()
@@ -362,27 +406,34 @@ mp.register_event("file-loaded", function()
     maybe_analyse()
 end)
 
--- each song is skipped up to MAX_SKIPS times per episode (go back to before it and it skips again; the next time you can listen to it)
-local MAX_SKIPS = 2
+-- each song is skipped up to max_skips times per video (go back to before it and it skips again; the next time you can listen to it)
 zone = {op = {n = 0, armed = true}, ed = {n = 0, armed = true}}
 local function jump(pos, target, what)
     undo_pos = pos
     mp.commandv("seek", tostring(target), "absolute+exact")
-    mp.osd_message("Skipped", 4)   -- same words for the opening and the ending, stays 4 seconds
+    mp.osd_message("Skipped", setting("introskip_msg_time", 4))   -- same words for the opening and the ending
     log("skipped %s %.1f -> %.1f", what, pos, target)
 end
-local function watch(z, pos, from, to, late, early, what)
+local function watch(z, pos, from, to, late, early, what, kind)
     if not from then return end
+    if z.hold then   -- the first time this opening / ending is heard: let it play and remember that it was heard
+        if pos >= from + late and current and results[current.key] and not results[current.key]["heard_" .. kind] then
+            results[current.key]["heard_" .. kind] = true
+            save_results()
+        end
+        return
+    end
     if pos < from + late - 0.5 then z.armed = true; return end   -- before the point where the skip starts: ready again
-    if not z.armed or z.n >= MAX_SKIPS then return end
+    if not z.armed or z.n >= setting("introskip_max_skips", 2) then return end
     if pos >= to - early - 1 then return end                      -- already at the end of it
     z.armed = false; z.n = z.n + 1
     jump(pos, to - early, what)
 end
 mp.observe_property("time-pos", "number", function(_, pos)
     if not pos or not current or not addon_on("introskip") then return end
-    watch(zone.op, pos, current.s, current.e, S_LATE, EARLY, "intro")
-    watch(zone.ed, pos, current.es, current.ee, ED_LATE, ED_EARLY, "ending")
+    local late, early = setting("introskip_skip_start", 3), setting("introskip_skip_end", 3)
+    watch(zone.op, pos, current.s, current.e, late, early, "intro", "op")
+    watch(zone.ed, pos, current.es, current.ee, late, early, "ending", "ed")
 end)
 
 mp.add_key_binding("Alt+i", "intro-skip-undo", function()
@@ -396,5 +447,6 @@ end)
 mp.register_script_message("introskip-testdump", function()
     local me = file_key(mp.get_property("path") or "")
     local r = me and results[me] or {}
+    print("INTRO hold op=" .. tostring(zone.op.hold) .. " ed=" .. tostring(zone.ed.hold) .. " heard_op=" .. tostring(r.heard_op) .. " heard_ed=" .. tostring(r.heard_ed))
     print(string.format("INTRO current=%s none=%s s=%s e=%s es=%s ee=%s n=%s", tostring(current ~= nil), tostring(r.none), tostring(r.s), tostring(r.e), tostring(r.es), tostring(r.ee), tostring(r.n)))
 end)

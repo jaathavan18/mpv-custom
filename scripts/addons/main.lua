@@ -19,7 +19,9 @@ local KNOWN = {
     {id = "chapters", name = "Chapter keys (Shift+N / Shift+P)",        files = {"chapter-step"}},
     {id = "bar",      name = "Bottom bar always visible (windowed)",    files = {"osc-always-windowed"}},
     {id = "introskip", name = "Auto skip intro (Alt+I undoes)",         files = {"intro-skip"}},
+    {id = "autoclean", name = "Remove watched videos from playlists",   files = {"tabs"}},
 }
+local DEFAULT_OFF = {autoclean = true}   -- these start switched off
 local ADDONS, registered = {}, {}
 local function installed(files)
     local dir = mp.command_native({"expand-path", "~~/scripts"})
@@ -35,10 +37,39 @@ local function detect()
     end
     for _, k in ipairs(registered or {}) do if not seen[k.id] then ADDONS[#ADDONS + 1] = k end end
 end
+-- numbers an add-on lets you change here. The value lives in addons-state.json (values) and is published as user-data/settings/<id>_<key>;
+-- the add-ons read it live and fall back to their own default.
+local SETTINGS = {
+    {id = "introskip", key = "skip_start", name = "Skip starts after (s)",       def = 3,    min = 0,   max = 30},
+    {id = "introskip", key = "skip_end",   name = "Lands before the end (s)",    def = 3,    min = 0,   max = 30},
+    {id = "introskip", key = "max_skips",  name = "Skips per video",             def = 2,    min = 1,   max = 9},
+    {id = "introskip", key = "min_len",    name = "Shortest repeat (s)",         def = 15,   min = 5,   max = 120},
+    {id = "introskip", key = "max_len",    name = "Longest repeat (s)",          def = 300,  min = 30,  max = 900},
+    {id = "introskip", key = "region",     name = "Look in first and last (%)",  def = 40,   min = 10,  max = 50},
+    {id = "introskip", key = "batch",      name = "Videos scanned at once",      def = 12,   min = 2,   max = 40},
+    {id = "introskip", key = "msg_time",   name = "Message stays (s)",           def = 4,    min = 1,   max = 15},
+    {id = "introskip", key = "first_play", name = "First play kept (1 yes, 0 no)", def = 1,    min = 0,   max = 1},
+    {id = "tabs",      key = "watched_pct", name = "Watched from (%)",           def = 90,   min = 50,  max = 100},
+    {id = "autoclean", key = "days",       name = "Remove after (days)", def = 7,    min = 1,   max = 365},
+    {id = "autoclean", key = "videos",     name = "Or after videos elsewhere", def = 10,  min = 1,   max = 500},
+    {id = "chapters",  key = "cooldown",   name = "Chapter key pause (s)",       def = 0.4,  min = 0,   max = 5},
+    {id = "letters",   key = "delay_step", name = "Delay step g h j k (s)",      def = 0.05, min = 0.01, max = 1},
+    {id = "letters",   key = "new_file_wait", name = "New file waits (s)",        def = 10,   min = 0,   max = 120},
+}
+-- settings that are mpv options (they apply to every key, mpv's own and input.conf ones too): the value is set on the option itself
+local OPTION_SETTINGS = {
+    {id = "keys", key = "hold_wait", name = "Held key starts repeating after (ms)", option = "input-ar-delay", min = 0, max = 3000},
+    {id = "keys", key = "hold_rate", name = "Held key repeats per second",          option = "input-ar-rate",  min = 1, max = 100},
+}
+for _, st in ipairs(OPTION_SETTINGS) do
+    st.def = tonumber(mp.get_property(st.option)) or 0   -- what mpv (mpv.conf) uses now
+    SETTINGS[#SETTINGS + 1] = st
+end
 local ACTIONS = {
     {id = "reset-window", name = "Reset the saved window place"},
     {id = "reset-sub",    name = "Forget the subtitle track number"},
     {id = "reset-volume", name = "Forget the saved volume"},
+    {id = "reset-settings", name = "Reset all settings"},
 }
 
 -- ---------------------------------------------------------------- state
@@ -47,11 +78,24 @@ do
     local f = io.open(STATE, "r")
     if f then
         local d = utils.parse_json(f:read("*a") or ""); f:close()
-        if type(d) == "table" then state = d end
+        if type(d) == "table" then   -- copy into fresh tables: a parsed empty list is an "array" that loses its string keys when saved again
+            for k, v in pairs(d) do if type(k) == "string" then state[k] = v end end
+            if type(state.values) == "table" then
+                local vals = {}
+                for k, v in pairs(state.values) do if type(k) == "string" then vals[k] = v end end
+                state.values = vals
+            end
+        end
     end
 end
-local function is_on(id) return state[id] ~= false end
+local function is_on(id) if DEFAULT_OFF[id] then return state[id] == true end return state[id] ~= false end
 local function publish(id) mp.set_property("user-data/addons/" .. id, is_on(id) and "on" or "off") end
+local function value(st) return (type(state.values) == "table" and tonumber(state.values[st.id .. "_" .. st.key])) or st.def end
+local function fmt(v) return string.format("%g", v) end
+local function publish_setting(st)
+    mp.set_property_native("user-data/settings/" .. st.id .. "_" .. st.key, value(st))
+    if st.option then mp.set_property(st.option, fmt(value(st))) end
+end
 local function save()
     local f = io.open(STATE, "w")
     if f then f:write(utils.format_json(state)); f:close() end
@@ -63,6 +107,16 @@ local function build_items()
     detect()
     items = {}
     for _, a in ipairs(ADDONS) do items[#items + 1] = {kind = "toggle", id = a.id, name = a.name} end
+    local have = {keys = true}
+    for _, a in ipairs(ADDONS) do have[a.id] = true end
+    local first = true
+    for _, st in ipairs(SETTINGS) do
+        if have[st.id] then
+            if first then items[#items + 1] = {kind = "label", name = "Settings (Enter to change)"}; first = false end
+            items[#items + 1] = {kind = "setting", st = st, name = st.name}
+        end
+        publish_setting(st)
+    end
     items[#items + 1] = {kind = "label", name = "Actions"}
     for _, a in ipairs(ACTIONS) do items[#items + 1] = {kind = "action", id = a.id, name = a.name} end
     for _, a in ipairs(ADDONS) do publish(a.id) end
@@ -81,7 +135,12 @@ local function run_action(id)
     local function rm(name) os.remove(mp.command_native({"expand-path", "~~/" .. name})) end
     if id == "reset-window" then rm("window-memory.json"); tell("Saved window place forgotten")
     elseif id == "reset-sub" then mp.commandv("script-message", "subtrack-reset"); tell("Subtitle track number forgotten")
-    elseif id == "reset-volume" then rm("volume.state"); tell("Saved volume forgotten") end
+    elseif id == "reset-volume" then rm("volume.state"); tell("Saved volume forgotten")
+    elseif id == "reset-settings" then
+        state.values = nil; save()
+        for _, st in ipairs(SETTINGS) do publish_setting(st) end
+        tell("Settings back to normal")
+    end
 end
 
 -- ---------------------------------------------------------------- look (same constants as the playlist panel)
@@ -134,7 +193,9 @@ local function redraw()
             local maxc = math.max(6, math.floor((z.P - FS * 5.5) / (FS * 0.45)))
             local nm = #it.name > maxc and it.name:sub(1, maxc - 1) .. "…" or it.name
             out[#out + 1] = text(x0 + math.floor(FS * 0.9), y1 + ry, nm, C.txt, FS)
-            if it.kind == "toggle" then
+            if it.kind == "setting" then
+                out[#out + 1] = text(w - math.floor(FS * 0.9), y1 + ry, fmt(value(it.st)), C.yel, FS, true)
+            elseif it.kind == "toggle" then
                 local on = is_on(it.id)
                 out[#out + 1] = text(w - math.floor(FS * 0.9), y1 + ry, on and "ON" or "OFF", on and C.yel or C.dim, FS, true)
             else
@@ -155,12 +216,27 @@ local function activate(i)
     local it = items[i]
     if not it or it.kind == "label" then return end
     selected = i
+    if it.kind == "setting" then
+        local st = it.st
+        local ok, input = pcall(require, 'mp.input')
+        if not ok then tell("No prompt in this mpv"); redraw(); return end
+        input.get({prompt = st.name .. " (" .. fmt(st.min) .. "-" .. fmt(st.max) .. "):", default_text = fmt(value(st)), submit = function(text)
+            input.terminate()
+            local n = tonumber((tostring(text or ""):gsub(",", ".")))
+            if not n then tell("Not a number"); redraw(); return end
+            n = math.max(st.min, math.min(st.max, n))
+            if type(state.values) ~= "table" then state.values = {} end
+            state.values[st.id .. "_" .. st.key] = n
+            publish_setting(st); save(); tell(st.name .. ": " .. fmt(n)); redraw()
+        end})
+        return
+    end
     if it.kind == "toggle" then
         local now = mp.get_time()
         if last_toggle[it.id] and now - last_toggle[it.id] < 0.25 then return end   -- a double-click must not switch twice
         last_toggle[it.id] = now
         state[it.id] = not is_on(it.id)
-        if state[it.id] == true then state[it.id] = nil end
+        if state[it.id] == (not DEFAULT_OFF[it.id]) then state[it.id] = nil end   -- the normal choice is not stored
         publish(it.id); save()
     else
         run_action(it.id)
@@ -244,8 +320,20 @@ mp.register_script_message("addons-testclick", function(x, y) fake_xy = {tonumbe
 mp.register_script_message("addons-testkey", function(k)
     if k == "down" then move(1) elseif k == "up" then move(-1) elseif k == "enter" then activate(selected) end
 end)
+mp.register_script_message("addons-testset", function(id, key, v)   -- test hook: what the prompt does after you type a number
+    for _, st in ipairs(SETTINGS) do
+        if st.id == id and st.key == key then
+            if type(state.values) ~= "table" then state.values = {} end
+            state.values[id .. "_" .. key] = math.max(st.min, math.min(st.max, tonumber(v)))
+            publish_setting(st); save()
+        end
+    end
+end)
+mp.register_script_message("addons-testreset", function() run_action("reset-settings") end)
 mp.register_script_message("addons-dump", function()
     local o = {}
     for _, a in ipairs(ADDONS) do o[#o + 1] = a.id .. "=" .. (is_on(a.id) and "on" or "off") end
-    print("ADDONS visible=" .. tostring(visible) ..  " | " .. table.concat(o, " "))
+    local n = 0
+    for _, it in ipairs(items) do if it.kind == "setting" then n = n + 1 end end
+    print("ADDONS visible=" .. tostring(visible) ..  " | " .. table.concat(o, " ") .. " | setting rows=" .. n)
 end)
