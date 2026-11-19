@@ -25,6 +25,7 @@ Skips the opening and the ending song of anime and TV episodes by itself, withou
 - Needs two or more episodes of a folder in the playlist. The first scan of a folder takes a minute or two; nothing skips until it is done, so the first episode usually plays its opening. The audio of each episode is read once (`intro-skip-*.fp`) and the times are kept in `intro-skip.json`, both in the config folder.
 - The skip starts 3 seconds into the song and lands 3 seconds before its end, and says "Skipped". Each song is skipped up to 2 times per episode (go back to before it and it skips again); the third time you can listen to it. Alt+I undoes a skip.
 - Episodes ahead and episodes you add to the playlist are scanned in the background, so they are ready when you reach them. An episode with no match is left alone.
+- **Picture check.** Where the sound says the song is, tiny grey pictures (4 a second, only numbers, nothing is displayed or kept except `intro-skip-*.pic`) are compared with the other videos that share the song. Only the parts where the picture matches at least one or two other videos are skipped, so a story scene or a montage under the same song plays, and so does speech over the song. A scene in the middle splits the skip in two. Black or flat pictures follow the sound. Where nothing can decide (nobody's picture matches anyone's, or two videos disagree) the setting "When unsure" decides, 0 = don't skip. Folders scanned before the picture check are checked once more when you next play from them; nothing in a folder is skipped while that runs (about a minute for 12 videos). The setting "Check the picture" turns it off.
 - The first video of each opening or ending plays it through; the videos that share it skip it. It goes by the matching audio, not by folder, so a new opening later in a series plays once too. Folders scanned before this was added skip as before. The setting "First play kept" turns it off.
 
 ## Numbers you can change
@@ -42,6 +43,9 @@ Under Settings in the panel, click a row or select it and press Enter, type a nu
 | Videos scanned at once (next scan) | 12 | 2-40 |
 | Message stays (s) | 4 | 1-15 |
 | First play kept (1 yes, 0 no) | 1 | 0-1 |
+| Check the picture (1 yes, 0 no) (next scan) | 1 | 0-1 |
+| When unsure: skip (1) or not (0) (next scan) | 0 | 0-1 |
+| Shortest skip (s) | 5 | 1-60 |
 | Watched from (%) | 90 | 50-100 |
 | Chapter key pause (s) | 0.4 | 0-5 |
 | Delay step g h j k (s) | 0.05 | 0.01-1 |

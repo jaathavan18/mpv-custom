@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Auto skip intro: picture check. After the sound finds the song, tiny pictures of that stretch are compared with the other videos, so only the parts with the same animation are skipped. A story scene or a montage under the same song, and speech over it, play; a scene in the middle splits the skip in two. New settings: "Check the picture", "When unsure" and "Shortest skip". Folders scanned before are checked once more on their next play.
+- Playlist panel: holding Del now keeps removing rows (the key repeats, like the arrow keys).
 - Numbers you can change in the add-ons panel (F7): the timings of Auto skip intro, the watched percentage, the chapter key pause, the g h j k delay step, the new-file wait, and mpv's key repeat (how long before a held key repeats and how fast). "Reset all settings" restores them. Table in `docs/ADDONS.md`.
 - New add-on: Remove watched videos from playlists. A watched video leaves the playlist after 7 days, or when its folder is fully watched and 10 videos from other folders were watched after it. Never deletes files, off until switched on, days and count are settings.
 - Auto skip intro: the first video of each opening or ending plays it through, the others skip it. Setting "First play kept". The longest repeat it accepts is now 300 seconds (was 150) and can be changed.

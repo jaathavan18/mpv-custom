@@ -659,7 +659,7 @@ local function bind(on)
         mp.add_forced_key_binding("MBTN_MID", "tabs-mid", middle_click)
         mp.add_forced_key_binding("WHEEL_UP", "tabs-up", function() wheel(-1) end)
         mp.add_forced_key_binding("WHEEL_DOWN", "tabs-down", function() wheel(1) end)
-        mp.add_forced_key_binding("DEL", "tabs-del", delete_selected)
+        mp.add_forced_key_binding("DEL", "tabs-del", delete_selected, {repeatable = true})
         mp.add_forced_key_binding("UP", "tabs-kup", function() move_selection(-1) end, {repeatable = true})
         mp.add_forced_key_binding("DOWN", "tabs-kdown", function() move_selection(1) end, {repeatable = true})
         mp.add_forced_key_binding("PGUP", "tabs-kpgup", function() move_selection(-10) end, {repeatable = true})
@@ -856,6 +856,7 @@ end)
 mp.register_script_message("tabs-reopen", reopen_closed)
 -- test hook: act as if the mouse did <what> at x,y (the headless test window is never "hovered")
 mp.register_script_message("tabs-testdel", delete_selected)   -- test hook
+mp.register_script_message("tabs-testbind", function() bind(true) end)   -- test hook: the panel keys, as if the mouse were over the panel
 mp.register_script_message("tabs-testwatched", function(what)   -- test hook
     if what == "toggle" then toggle_watched(selected)
     else
