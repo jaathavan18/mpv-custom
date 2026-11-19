@@ -43,6 +43,16 @@ Only plain letters are changed. The add-ons panel can switch them off (then they
 
 Ctrl+D (same script, same switch): next audio output device, wrapping round; the name is shown on screen.
 
+Alt + letter gives back mpv's own function that a VLC letter displaced (same script, same switch; nothing happens while the letters are off):
+
+| Key | Action |
+|---|---|
+| Alt+L | A-B loop: press for A, again for B, again to clear |
+| Alt+R | subtitles up (Shift+R moves them down) |
+| Alt+B | deband on / off |
+| Alt+W | crop to fill, less (Shift+W is more) |
+| Alt+U | cycle subtitle style: file / scaled / forced |
+
 Alt+I (`scripts/intro-skip/`): undo the last automatic skip of an opening or ending.
 
 ## Chapter keys (`scripts/chapter-step.lua` + `examples/input-chapters.conf`)

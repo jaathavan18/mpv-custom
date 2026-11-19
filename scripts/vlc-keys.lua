@@ -165,6 +165,21 @@ local STOCK = {
     u = [[cycle-values sub-ass-override "force" "scale"]], v = "cycle sub-visibility", w = "add panscan -0.1",
     x = "add sub-delay 0.1", z = "add sub-delay -0.1",
 }
+-- What the VLC letters took from mpv and nothing else gives back: mpv's own function on Alt + the same letter (Alt+letter is free in mpv).
+-- Left out because they still work: stats (Shift+I), pause (Space), screenshot (Shift+S), sub position down (Shift+R), sub delay (g / h), progress (t).
+local NATIVE_ON_ALT = {
+    {"Alt+l", "ab-loop"},                                                 -- A-B repeat: press for A, again for B, again to clear
+    {"Alt+r", "add sub-pos -1"},                                          -- subtitles up (Shift+R moves them down)
+    {"Alt+b", "cycle deband"},
+    {"Alt+w", "add panscan -0.1"},                                        -- crop to fill, less (Shift+W is more)
+    {"Alt+u", [[cycle-values sub-ass-override "force" "scale" "no"]]},   -- subtitle style from the file or forced
+}
+for _, e in ipairs(NATIVE_ON_ALT) do
+    mp.add_key_binding(e[1], "vlc-native-" .. e[1]:lower(), function()
+        if addon_on("letters") then mp.command("osd-auto " .. e[2]) end
+    end, {repeatable = true})
+end
+
 local letters_on
 local function set_letters(on)
     if on == letters_on then return end

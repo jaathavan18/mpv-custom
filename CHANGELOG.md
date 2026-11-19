@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.3.0
+
+- VLC keys: Alt+L (A-B loop), Alt+R (subtitles up), Alt+B (deband), Alt+W (crop to fill, less) and Alt+U (subtitle style) give back mpv's own functions that the VLC letters displaced. They follow the letters switch in the add-ons panel. Table in `docs/KEYS.md`.
+
 ## 1.2.0
 
 - Auto skip intro: picture check. After the sound finds the song, tiny pictures of that stretch are compared with the other videos, so only the parts with the same animation are skipped. A story scene or a montage under the same song, and speech over it, play; a scene in the middle splits the skip in two. New settings: "Check the picture", "When unsure" and "Shortest skip". Folders scanned before are checked once more on their next play.
